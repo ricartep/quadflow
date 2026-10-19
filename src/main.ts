@@ -1,9 +1,15 @@
 import './style.css';
+import { initGate } from './ui';
 import { createViewport } from './viewport';
 
-const app = document.querySelector<HTMLDivElement>('#app');
-if (!app) {
-  throw new Error('Elemento #app não encontrado');
+async function main(): Promise<void> {
+  const app = document.querySelector<HTMLDivElement>('#app');
+  if (!app) {
+    throw new Error('Elemento #app não encontrado');
+  }
+
+  await initGate();
+  createViewport(app);
 }
 
-createViewport(app);
+void main();

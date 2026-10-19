@@ -1,0 +1,1 @@
+export { initGate } from './gate';
