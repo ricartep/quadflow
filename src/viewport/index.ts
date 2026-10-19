@@ -1,12 +1,15 @@
+import { createCubeMesh, type Mesh } from '../core';
 import { BlenderOrbitControls, createCamera } from './camera';
 import { createGrid } from './grid';
-import { createCube, createRenderer, createScene } from './renderer';
+import { createMeshView } from './meshView';
+import { createRenderer, createScene } from './renderer';
 
 export interface Viewport {
+  updateMesh(mesh: Mesh): void;
   dispose(): void;
 }
 
-/** Monta viewport com câmera orbital estilo Blender, grid e cubo. */
+/** Monta viewport com câmera orbital, grid e malha de /core. */
 export function createViewport(container: HTMLElement): Viewport {
   const scene = createScene();
   const renderer = createRenderer(container);
@@ -15,8 +18,10 @@ export function createViewport(container: HTMLElement): Viewport {
   );
   const controls = new BlenderOrbitControls(camera, renderer.domElement);
 
+  const meshView = createMeshView(createCubeMesh());
+
   scene.add(createGrid());
-  scene.add(createCube());
+  scene.add(meshView.group);
 
   let frameId = 0;
 
@@ -38,9 +43,13 @@ export function createViewport(container: HTMLElement): Viewport {
   tick();
 
   return {
+    updateMesh(mesh: Mesh): void {
+      meshView.updateMesh(mesh);
+    },
     dispose(): void {
       cancelAnimationFrame(frameId);
       window.removeEventListener('resize', onResize);
+      meshView.dispose();
       controls.dispose();
       renderer.dispose();
       renderer.domElement.remove();

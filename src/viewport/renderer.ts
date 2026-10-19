@@ -27,15 +27,3 @@ export function createScene(): THREE.Scene {
 
   return scene;
 }
-
-export function createCube(): THREE.Mesh {
-  const geometry = new THREE.BoxGeometry(2, 2, 2);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x7a8a9a,
-    roughness: 0.55,
-    metalness: 0.05,
-  });
-  const cube = new THREE.Mesh(geometry, material);
-  cube.position.y = 1;
-  return cube;
-}
