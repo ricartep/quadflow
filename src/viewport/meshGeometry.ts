@@ -9,6 +9,12 @@ export interface MeshRenderData {
   edgeIndices: Uint32Array;
   /** Mapa id do vértice → índice no buffer de posições. */
   idToIndex: Map<Id, number>;
+  /** Índice no buffer → id do vértice. */
+  indexToId: Id[];
+  /** Por triângulo (faceIndex do Three), id da face de origem. */
+  faceIdByTriangle: Id[];
+  /** Por segmento de linha (i), id da aresta. */
+  edgeIdBySegment: Id[];
 }
 
 function buildIdToIndex(mesh: Mesh): Map<Id, number> {
@@ -40,12 +46,18 @@ export function meshToPositions(
   return positions;
 }
 
+export interface FaceIndexData {
+  indices: Uint32Array;
+  faceIdByTriangle: Id[];
+}
+
 /** Triangula faces via fan usando `faceVertices` de /core. */
 export function meshToFaceIndices(
   mesh: Mesh,
   idToIndex: Map<Id, number> = buildIdToIndex(mesh),
-): Uint32Array {
+): FaceIndexData {
   const indices: number[] = [];
+  const faceIdByTriangle: Id[] = [];
 
   for (const face of mesh.faces.values()) {
     const verts = faceVertices(mesh, face.id);
@@ -63,18 +75,25 @@ export function meshToFaceIndices(
         throw new Error(`Vértice de face ausente no mapa`);
       }
       indices.push(i0, ia, ib);
+      faceIdByTriangle.push(face.id);
     }
   }
 
-  return Uint32Array.from(indices);
+  return { indices: Uint32Array.from(indices), faceIdByTriangle };
+}
+
+export interface EdgeIndexData {
+  indices: Uint32Array;
+  edgeIdBySegment: Id[];
 }
 
 /** Duas entradas de índice por aresta (sem duplicar twins). */
 export function meshToEdgeIndices(
   mesh: Mesh,
   idToIndex: Map<Id, number> = buildIdToIndex(mesh),
-): Uint32Array {
+): EdgeIndexData {
   const indices: number[] = [];
+  const edgeIdBySegment: Id[] = [];
 
   for (const edge of mesh.edges.values()) {
     const he = mesh.halfEdges.get(edge.halfEdge);
@@ -92,18 +111,28 @@ export function meshToEdgeIndices(
       throw new Error(`Extremidade de aresta ausente no mapa`);
     }
     indices.push(a, b);
+    edgeIdBySegment.push(edge.id);
   }
 
-  return Uint32Array.from(indices);
+  return { indices: Uint32Array.from(indices), edgeIdBySegment };
 }
 
 /** Converte a malha half-edge em buffers de render (puro, sem WebGL). */
 export function meshToRenderData(mesh: Mesh): MeshRenderData {
   const idToIndex = buildIdToIndex(mesh);
+  const indexToId: Id[] = Array.from({ length: idToIndex.size });
+  for (const [id, index] of idToIndex) {
+    indexToId[index] = id;
+  }
+  const faces = meshToFaceIndices(mesh, idToIndex);
+  const edges = meshToEdgeIndices(mesh, idToIndex);
   return {
     positions: meshToPositions(mesh, idToIndex),
-    faceIndices: meshToFaceIndices(mesh, idToIndex),
-    edgeIndices: meshToEdgeIndices(mesh, idToIndex),
+    faceIndices: faces.indices,
+    edgeIndices: edges.indices,
     idToIndex,
+    indexToId,
+    faceIdByTriangle: faces.faceIdByTriangle,
+    edgeIdBySegment: edges.edgeIdBySegment,
   };
 }

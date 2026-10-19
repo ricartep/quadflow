@@ -19,14 +19,16 @@ describe('meshToRenderData (cubo)', () => {
     const mesh = createCubeMesh();
     const edges = meshToEdgeIndices(mesh);
     expect(mesh.edges.size).toBe(12);
-    expect(edges.length).toBe(12 * 2);
+    expect(edges.indices.length).toBe(12 * 2);
+    expect(edges.edgeIdBySegment).toHaveLength(12);
   });
 
   it('conta índices de face: 6 quads → 36', () => {
     const mesh = createCubeMesh();
     const faces = meshToFaceIndices(mesh);
     expect(mesh.faces.size).toBe(6);
-    expect(faces.length).toBe(6 * 2 * 3);
+    expect(faces.indices.length).toBe(6 * 2 * 3);
+    expect(faces.faceIdByTriangle).toHaveLength(12);
   });
 
   it('meshToRenderData agrega buffers coerentes', () => {
@@ -35,6 +37,8 @@ describe('meshToRenderData (cubo)', () => {
     expect(data.edgeIndices.length).toBe(24);
     expect(data.faceIndices.length).toBe(36);
     expect(data.idToIndex.size).toBe(8);
+    expect(data.faceIdByTriangle).toHaveLength(12);
+    expect(data.edgeIdBySegment).toHaveLength(12);
 
     for (const index of data.faceIndices) {
       expect(index).toBeGreaterThanOrEqual(0);
