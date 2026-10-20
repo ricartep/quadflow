@@ -1,0 +1,18 @@
+export {
+  appendNumericChar,
+  applyPositions,
+  beginTransform,
+  computePivot,
+  formatTransformStatus,
+  parseNumericBuffer,
+  positionsFromSession,
+  restorePositions,
+  setMouseAngle,
+  setMouseGrab,
+  setMouseScale,
+  snapshotPositions,
+  toggleAxis,
+  type AxisConstraint,
+  type TransformKind,
+  type TransformSession,
+} from './transform';

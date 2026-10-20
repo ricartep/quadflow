@@ -202,3 +202,32 @@ function convertSelection(
 
   return empty;
 }
+
+/** Vértices afetados pela seleção atual (aresta/face → extremos / faceVertices). */
+export function selectionVertexIds(
+  state: SelectionState,
+  mesh: Mesh,
+): Set<Id> {
+  if (state.appMode !== 'edit') return new Set();
+
+  if (state.domain === 'vertex') {
+    return new Set(state.vertices);
+  }
+
+  const ids = new Set<Id>();
+  if (state.domain === 'edge') {
+    for (const edgeId of state.edges) {
+      const [a, b] = edgeVertices(mesh, edgeId);
+      ids.add(a);
+      ids.add(b);
+    }
+    return ids;
+  }
+
+  for (const faceId of state.faces) {
+    for (const v of faceVertices(mesh, faceId)) {
+      ids.add(v);
+    }
+  }
+  return ids;
+}

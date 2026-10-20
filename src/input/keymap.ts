@@ -4,7 +4,15 @@ export type KeyAction =
   | 'modeEdge'
   | 'modeFace'
   | 'selectAll'
-  | 'deselectAll';
+  | 'deselectAll'
+  | 'transformGrab'
+  | 'transformRotate'
+  | 'transformScale'
+  | 'axisX'
+  | 'axisY'
+  | 'axisZ'
+  | 'cancelTransform'
+  | 'confirmTransform';
 
 export interface KeyBinding {
   action: KeyAction;
@@ -15,29 +23,100 @@ export interface KeyBinding {
   shift?: boolean;
   /** Só dispara em Edit mode. */
   requiresEdit?: boolean;
+  /** Só dispara durante modal G/R/S. */
+  requiresTransform?: boolean;
+  /** Só dispara fora do modal G/R/S. */
+  blocksDuringTransform?: boolean;
 }
 
 /** Única fonte de atalhos do app. */
 export const KEYMAP: readonly KeyBinding[] = [
-  { action: 'toggleObjectEdit', code: 'Tab' },
-  { action: 'modeVertex', code: 'Digit1', requiresEdit: true },
-  { action: 'modeEdge', code: 'Digit2', requiresEdit: true },
-  { action: 'modeFace', code: 'Digit3', requiresEdit: true },
-  { action: 'selectAll', code: 'KeyA' },
-  { action: 'deselectAll', code: 'KeyA', alt: true },
+  { action: 'toggleObjectEdit', code: 'Tab', blocksDuringTransform: true },
+  {
+    action: 'modeVertex',
+    code: 'Digit1',
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'modeEdge',
+    code: 'Digit2',
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'modeFace',
+    code: 'Digit3',
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  { action: 'selectAll', code: 'KeyA', blocksDuringTransform: true },
+  { action: 'deselectAll', code: 'KeyA', alt: true, blocksDuringTransform: true },
+  {
+    action: 'transformGrab',
+    code: 'KeyG',
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'transformRotate',
+    code: 'KeyR',
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'transformScale',
+    code: 'KeyS',
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  { action: 'axisX', code: 'KeyX', requiresTransform: true },
+  { action: 'axisY', code: 'KeyY', requiresTransform: true },
+  { action: 'axisZ', code: 'KeyZ', requiresTransform: true },
+  { action: 'cancelTransform', code: 'Escape', requiresTransform: true },
+  { action: 'confirmTransform', code: 'Enter', requiresTransform: true },
+  { action: 'confirmTransform', code: 'NumpadEnter', requiresTransform: true },
 ] as const;
 
 export function matchKeyAction(
   event: KeyboardEvent,
   editMode: boolean,
+  transformActive = false,
 ): KeyAction | null {
   for (const binding of KEYMAP) {
     if (binding.requiresEdit && !editMode) continue;
+    if (binding.requiresTransform && !transformActive) continue;
+    if (binding.blocksDuringTransform && transformActive) continue;
     if (event.code !== binding.code) continue;
     if (!!binding.alt !== event.altKey) continue;
     if (!!binding.ctrl !== event.ctrlKey) continue;
     if (!!binding.shift !== event.shiftKey) continue;
     return binding.action;
   }
+  return null;
+}
+
+/**
+ * Entrada numérica do modal G/R/S.
+ * Retorna dígito, ".", "-", ou "backspace"; null se não for input numérico.
+ */
+export function matchNumericInput(event: KeyboardEvent): string | null {
+  if (event.ctrlKey || event.altKey || event.metaKey) return null;
+
+  if (event.code === 'Backspace') return 'backspace';
+  if (event.code === 'Minus' || event.code === 'NumpadSubtract') return '-';
+  if (
+    event.code === 'Period' ||
+    event.code === 'NumpadDecimal' ||
+    event.code === 'Comma'
+  ) {
+    return '.';
+  }
+
+  const digit = event.code.match(/^Digit(\d)$/);
+  if (digit) return digit[1]!;
+  const numpad = event.code.match(/^Numpad(\d)$/);
+  if (numpad) return numpad[1]!;
+
   return null;
 }
