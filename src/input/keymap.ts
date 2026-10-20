@@ -18,7 +18,8 @@ export type KeyAction =
   | 'cancelTransform'
   | 'confirmTransform'
   | 'undo'
-  | 'redo';
+  | 'redo'
+  | 'toggleImmersive';
 
 export interface KeyBinding {
   action: KeyAction;
@@ -120,14 +121,21 @@ export const KEYMAP: readonly KeyBinding[] = [
     shift: true,
     blocksDuringTransform: true,
   },
+  {
+    action: 'toggleImmersive',
+    code: 'F11',
+    blocksDuringTransform: true,
+  },
 ] as const;
 
 /**
  * Impede atalhos do navegador que conflitam com o app
  * (ex.: Ctrl+R recarregar, Ctrl+S salvar página, Tab sair do foco).
+ * Fora do Modo Foco alguns browsers ainda engolem Ctrl+R — use F11.
  */
 export function shouldPreventBrowserDefault(event: KeyboardEvent): boolean {
   if (event.code === 'Tab') return true;
+  if (event.code === 'F11') return true;
 
   const mod = event.ctrlKey || event.metaKey;
   if (!mod) return false;
@@ -136,8 +144,18 @@ export function shouldPreventBrowserDefault(event: KeyboardEvent): boolean {
     event.code === 'KeyR' ||
     event.code === 'KeyS' ||
     event.code === 'KeyZ' ||
-    event.code === 'KeyA'
+    event.code === 'KeyA' ||
+    event.code === 'KeyW' ||
+    event.code === 'KeyN' ||
+    event.code === 'KeyT'
   );
+}
+
+/** preventDefault + stopImmediatePropagation na fase capture. */
+export function blockBrowserShortcut(event: KeyboardEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
 }
 
 export function matchKeyAction(

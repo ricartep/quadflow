@@ -8,9 +8,13 @@ import {
   type Mesh,
 } from '../core';
 import {
+  bindImmersiveLifecycle,
+  blockBrowserShortcut,
   matchKeyAction,
   matchNumericInput,
+  onImmersiveChange,
   shouldPreventBrowserDefault,
+  toggleImmersive,
 } from '../input';
 import {
   appendNumericChar,
@@ -34,9 +38,11 @@ import {
   type TransformSession,
 } from '../tools';
 import {
+  createImmersiveToggle,
   createShortcutLegend,
   createStatusBar,
   formatSelectionStatus,
+  type ImmersiveToggle,
   type ShortcutLegend,
   type StatusBar,
 } from '../ui';
@@ -98,6 +104,13 @@ export function createViewport(container: HTMLElement): Viewport {
   let pendingRestore: Mesh | null = null;
   const status: StatusBar = createStatusBar(container);
   const legend: ShortcutLegend = createShortcutLegend(container);
+  const immersiveBtn: ImmersiveToggle = createImmersiveToggle(container, () => {
+    void toggleImmersive(container);
+  });
+  const unbindImmersive = bindImmersiveLifecycle();
+  const unsubImmersive = onImmersiveChange((active) => {
+    immersiveBtn.setActive(active);
+  });
 
   scene.add(createGrid());
   scene.add(meshView.group);
@@ -262,9 +275,9 @@ export function createViewport(container: HTMLElement): Viewport {
   applySelection();
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    // Captura atalhos do app antes do navegador (Ctrl+R = reload, etc.)
+    // Fase capture: tenta ganhar do handler padrão do browser
     if (shouldPreventBrowserDefault(event)) {
-      event.preventDefault();
+      blockBrowserShortcut(event);
     }
 
     const transforming = transform !== null;
@@ -272,7 +285,7 @@ export function createViewport(container: HTMLElement): Viewport {
     if (transforming) {
       const numeric = matchNumericInput(event);
       if (numeric !== null) {
-        event.preventDefault();
+        blockBrowserShortcut(event);
         transform = appendNumericChar(transform!, numeric);
         previewTransform();
         return;
@@ -285,8 +298,7 @@ export function createViewport(container: HTMLElement): Viewport {
       transforming,
     );
     if (!action) return;
-    event.preventDefault();
-    event.stopPropagation();
+    blockBrowserShortcut(event);
 
     switch (action) {
       case 'toggleObjectEdit':
@@ -362,6 +374,9 @@ export function createViewport(container: HTMLElement): Viewport {
         if (next) applyHistoryMesh(next);
         break;
       }
+      case 'toggleImmersive':
+        void toggleImmersive(container);
+        break;
     }
   };
 
@@ -581,7 +596,8 @@ export function createViewport(container: HTMLElement): Viewport {
     onPointerMoveSelect(event);
   };
 
-  window.addEventListener('keydown', onKeyDown);
+  // capture: true — chega antes do default do browser (Ctrl+R, Tab…)
+  window.addEventListener('keydown', onKeyDown, true);
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
   renderer.domElement.addEventListener('pointerup', onPointerUp);
   renderer.domElement.addEventListener('pointercancel', onPointerUp);
@@ -621,13 +637,16 @@ export function createViewport(container: HTMLElement): Viewport {
     dispose(): void {
       cancelAnimationFrame(frameId);
       window.removeEventListener('resize', onResize);
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('pointermove', onPointerMoveArm);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
       renderer.domElement.removeEventListener('pointercancel', onPointerUp);
       renderer.domElement.removeEventListener('contextmenu', onContextMenu);
       hideMarquee();
+      unsubImmersive();
+      unbindImmersive();
+      immersiveBtn.dispose();
       status.dispose();
       legend.dispose();
       meshView.dispose();

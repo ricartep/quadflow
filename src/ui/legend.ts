@@ -41,6 +41,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
         { keys: 'Scroll', desc: 'Zoom' },
         { keys: 'Ctrl+Z', desc: 'Desfazer' },
         { keys: 'Ctrl+Shift+Z', desc: 'Refazer' },
+        { keys: 'F11', desc: 'Modo Foco (captura Ctrl+R…)' },
       ],
     };
   }
@@ -52,6 +53,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
     { keys: 'Alt+A', desc: 'Limpar seleção' },
     { keys: 'G R S', desc: 'Mover · Rotacionar · Escalar' },
     { keys: 'Ctrl+Z', desc: 'Desfazer' },
+    { keys: 'F11', desc: 'Modo Foco (captura Ctrl+R…)' },
   ];
 
   if (ctx.domain === 'vertex') {
@@ -119,7 +121,7 @@ export function createShortcutLegend(parent: HTMLElement): ShortcutLegend {
           )
           .join('')}
       </ul>
-      <p class="qf-legend__hint">Dica: atalhos do navegador (Ctrl+R, Tab…) ficam com o app.</p>
+      <p class="qf-legend__hint">Dica: use Modo Foco (F11) para o browser não roubar Ctrl+R / Tab.</p>
     `;
   };
 
