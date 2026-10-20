@@ -11,6 +11,7 @@ export type KeyAction =
   | 'extrude'
   | 'merge'
   | 'delete'
+  | 'loopCut'
   | 'axisX'
   | 'axisY'
   | 'axisZ'
@@ -93,6 +94,13 @@ export const KEYMAP: readonly KeyBinding[] = [
     requiresEdit: true,
     blocksDuringTransform: true,
   },
+  {
+    action: 'loopCut',
+    code: 'KeyR',
+    ctrl: true,
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
   { action: 'axisX', code: 'KeyX', requiresTransform: true },
   { action: 'axisY', code: 'KeyY', requiresTransform: true },
   { action: 'axisZ', code: 'KeyZ', requiresTransform: true },
@@ -113,6 +121,24 @@ export const KEYMAP: readonly KeyBinding[] = [
     blocksDuringTransform: true,
   },
 ] as const;
+
+/**
+ * Impede atalhos do navegador que conflitam com o app
+ * (ex.: Ctrl+R recarregar, Ctrl+S salvar página, Tab sair do foco).
+ */
+export function shouldPreventBrowserDefault(event: KeyboardEvent): boolean {
+  if (event.code === 'Tab') return true;
+
+  const mod = event.ctrlKey || event.metaKey;
+  if (!mod) return false;
+
+  return (
+    event.code === 'KeyR' ||
+    event.code === 'KeyS' ||
+    event.code === 'KeyZ' ||
+    event.code === 'KeyA'
+  );
+}
 
 export function matchKeyAction(
   event: KeyboardEvent,

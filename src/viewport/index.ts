@@ -7,7 +7,11 @@ import {
   undoHistory,
   type Mesh,
 } from '../core';
-import { matchKeyAction, matchNumericInput } from '../input';
+import {
+  matchKeyAction,
+  matchNumericInput,
+  shouldPreventBrowserDefault,
+} from '../input';
 import {
   appendNumericChar,
   applyPositions,
@@ -19,6 +23,7 @@ import {
   extrudeFaces,
   extrudeVertices,
   formatTransformStatus,
+  loopCut,
   mergeVerticesAtCenter,
   positionsFromSession,
   restorePositions,
@@ -29,10 +34,13 @@ import {
   type TransformSession,
 } from '../tools';
 import {
+  createShortcutLegend,
   createStatusBar,
   formatSelectionStatus,
+  type ShortcutLegend,
   type StatusBar,
 } from '../ui';
+import '../ui/legend.css';
 import '../ui/status.css';
 import { BlenderOrbitControls, createCamera } from './camera';
 import { createGrid } from './grid';
@@ -79,14 +87,20 @@ export function createViewport(container: HTMLElement): Viewport {
   let transformStartX = 0;
   let transformStartY = 0;
   let transformOriginArmed = false;
-  /** Snapshot pré-extrude: Esc no G após E restaura a malha inteira. */
-  let extrudeRestore: Mesh | null = null;
+  /** Snapshot pré-operador (E / Ctrl+R): Esc no G restaura a malha. */
+  let pendingRestore: Mesh | null = null;
   const status: StatusBar = createStatusBar(container);
+  const legend: ShortcutLegend = createShortcutLegend(container);
 
   scene.add(createGrid());
   scene.add(meshView.group);
 
   const refreshStatus = (): void => {
+    legend.update({
+      appMode: selection.appMode,
+      domain: selection.domain,
+      transforming: transform !== null,
+    });
     if (transform) {
       status.update(formatTransformStatus(transform));
       return;
@@ -117,9 +131,9 @@ export function createViewport(container: HTMLElement): Viewport {
     if (!transform) return;
     const session = transform;
     transform = null;
-    if (extrudeRestore) {
-      mesh = cloneMesh(extrudeRestore);
-      extrudeRestore = null;
+    if (pendingRestore) {
+      mesh = cloneMesh(pendingRestore);
+      pendingRestore = null;
       selection = clearSelection(selection);
     } else {
       restorePositions(mesh, session.originals);
@@ -132,7 +146,7 @@ export function createViewport(container: HTMLElement): Viewport {
     if (!transform) return;
     applyPositions(mesh, positionsFromSession(transform));
     transform = null;
-    extrudeRestore = null;
+    pendingRestore = null;
     commitHistory(history, mesh);
     mesh = cloneMesh(history.present);
     meshView.updateMesh(mesh);
@@ -181,7 +195,29 @@ export function createViewport(container: HTMLElement): Viewport {
 
     if (!result || result.newVertexIds.length === 0) return;
 
-    extrudeRestore = cloneMesh(mesh);
+    pendingRestore = cloneMesh(mesh);
+    mesh = result.mesh;
+    meshView.updateMesh(mesh);
+    selection = {
+      appMode: 'edit',
+      domain: 'vertex',
+      vertices: new Set(result.newVertexIds),
+      edges: new Set(),
+      faces: new Set(),
+    };
+    applySelection();
+    startTransform('grab');
+  };
+
+  const runLoopCut = (): void => {
+    if (selection.appMode !== 'edit') return;
+    if (selection.domain !== 'edge' || selection.edges.size === 0) return;
+
+    const edgeId = selection.edges.values().next().value!;
+    const result = loopCut(mesh, edgeId, 0.5);
+    if (!result || result.newVertexIds.length === 0) return;
+
+    pendingRestore = cloneMesh(mesh);
     mesh = result.mesh;
     meshView.updateMesh(mesh);
     selection = {
@@ -219,6 +255,11 @@ export function createViewport(container: HTMLElement): Viewport {
   applySelection();
 
   const onKeyDown = (event: KeyboardEvent): void => {
+    // Captura atalhos do app antes do navegador (Ctrl+R = reload, etc.)
+    if (shouldPreventBrowserDefault(event)) {
+      event.preventDefault();
+    }
+
     const transforming = transform !== null;
 
     if (transforming) {
@@ -238,6 +279,7 @@ export function createViewport(container: HTMLElement): Viewport {
     );
     if (!action) return;
     event.preventDefault();
+    event.stopPropagation();
 
     switch (action) {
       case 'toggleObjectEdit':
@@ -275,6 +317,9 @@ export function createViewport(container: HTMLElement): Viewport {
         break;
       case 'extrude':
         runExtrude();
+        break;
+      case 'loopCut':
+        runLoopCut();
         break;
       case 'merge':
         runMerge();
@@ -456,6 +501,7 @@ export function createViewport(container: HTMLElement): Viewport {
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('contextmenu', onContextMenu);
       status.dispose();
+      legend.dispose();
       meshView.dispose();
       controls.dispose();
       renderer.dispose();

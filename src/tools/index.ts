@@ -12,6 +12,12 @@ export {
   faceNormal,
   type ExtrudeResult,
 } from './extrude';
+export {
+  findEdgeRing,
+  loopCut,
+  oppositeEdgeOnQuad,
+  type LoopCutResult,
+} from './loopCut';
 export { buildMeshFromFaces } from './meshBuild';
 export {
   appendNumericChar,

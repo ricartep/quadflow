@@ -1,0 +1,73 @@
+.qf-legend {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 40;
+  width: min(280px, calc(100vw - 1.5rem));
+  padding: 0.85rem 1rem 0.75rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 2px;
+  background: rgba(22, 22, 22, 0.92);
+  color: #c4c4c4;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  pointer-events: none;
+  user-select: none;
+  backdrop-filter: blur(4px);
+}
+
+.qf-legend__brand {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #8a9aaa;
+  margin-bottom: 0.35rem;
+}
+
+.qf-legend__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e8e8e8;
+  margin-bottom: 0.65rem;
+}
+
+.qf-legend__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.qf-legend__row {
+  display: grid;
+  grid-template-columns: 7.2rem 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.qf-legend__keys {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 600;
+  color: #f0a060;
+  background: #2a2a2a;
+  border: 1px solid #4a4a4a;
+  border-radius: 2px;
+  padding: 0.12rem 0.35rem;
+  text-align: center;
+}
+
+.qf-legend__desc {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #b0b0b0;
+}
+
+.qf-legend__hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: #777;
+}
