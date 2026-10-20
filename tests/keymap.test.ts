@@ -48,4 +48,13 @@ describe('matchKeyAction loopCut / immersive', () => {
       'toggleImmersive',
     );
   });
+
+  it('Shift+A → addPrimitive; Shift+D → duplicate', () => {
+    expect(
+      matchKeyAction(keyEvent('KeyA', { shiftKey: true }), false, false),
+    ).toBe('addPrimitive');
+    expect(
+      matchKeyAction(keyEvent('KeyD', { shiftKey: true }), true, false),
+    ).toBe('duplicate');
+  });
 });

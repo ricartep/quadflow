@@ -17,12 +17,14 @@ import {
   toggleImmersive,
 } from '../input';
 import {
+  addPrimitive,
   appendNumericChar,
   applyPositions,
   beginTransform,
   deleteFaces,
   deleteVertices,
   dissolveEdges,
+  duplicateSelection,
   extrudeEdges,
   extrudeFaces,
   extrudeVertices,
@@ -264,6 +266,49 @@ export function createViewport(container: HTMLElement): Viewport {
     applySelection();
   };
 
+  const beginGrabNewVerts = (newVertexIds: number[]): void => {
+    meshView.updateMesh(mesh);
+    selection = {
+      appMode: 'edit',
+      domain: 'vertex',
+      vertices: new Set(newVertexIds),
+      edges: new Set(),
+      faces: new Set(),
+    };
+    applySelection();
+    startTransform('grab');
+  };
+
+  const runAddPrimitive = (): void => {
+    if (loopCutSession) cancelLoopCut();
+    if (transform) cancelTransform();
+
+    const result = addPrimitive(mesh, 'cube', 1);
+    if (result.newVertexIds.length === 0) return;
+
+    mesh = result.mesh;
+    commitHistory(history, mesh);
+    mesh = cloneMesh(history.present);
+    beginGrabNewVerts(result.newVertexIds);
+  };
+
+  const runDuplicate = (): void => {
+    if (selection.appMode !== 'edit') return;
+
+    let ids: number[] = [];
+    if (selection.domain === 'face') ids = [...selection.faces];
+    else if (selection.domain === 'edge') ids = [...selection.edges];
+    else ids = [...selection.vertices];
+
+    const result = duplicateSelection(mesh, selection.domain, ids);
+    if (!result || result.newVertexIds.length === 0) return;
+
+    mesh = result.mesh;
+    commitHistory(history, mesh);
+    mesh = cloneMesh(history.present);
+    beginGrabNewVerts(result.newVertexIds);
+  };
+
   const runExtrude = (): void => {
     if (selection.appMode !== 'edit') return;
 
@@ -497,6 +542,12 @@ export function createViewport(container: HTMLElement): Viewport {
         break;
       case 'loopCut':
         startLoopCut();
+        break;
+      case 'addPrimitive':
+        runAddPrimitive();
+        break;
+      case 'duplicate':
+        runDuplicate();
         break;
       case 'merge':
         runMerge();

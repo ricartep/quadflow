@@ -12,6 +12,8 @@ export type KeyAction =
   | 'merge'
   | 'delete'
   | 'loopCut'
+  | 'addPrimitive'
+  | 'duplicate'
   | 'axisX'
   | 'axisY'
   | 'axisZ'
@@ -99,6 +101,19 @@ export const KEYMAP: readonly KeyBinding[] = [
     action: 'loopCut',
     code: 'KeyR',
     ctrl: true,
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'addPrimitive',
+    code: 'KeyA',
+    shift: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'duplicate',
+    code: 'KeyD',
+    shift: true,
     requiresEdit: true,
     blocksDuringTransform: true,
   },

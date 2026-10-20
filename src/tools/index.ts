@@ -1,10 +1,19 @@
 export {
+  duplicateSelection,
+  type DuplicateResult,
+} from './duplicate';
+export {
   deleteFaces,
   deleteVertices,
   dissolveEdges,
   mergeFaceLoops,
   mergeVerticesAtCenter,
 } from './edit';
+export {
+  addPrimitive,
+  type AddPrimitiveResult,
+  type PrimitiveKind,
+} from './primitives';
 export {
   extrudeEdges,
   extrudeFaces,
