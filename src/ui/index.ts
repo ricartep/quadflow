@@ -9,6 +9,11 @@ export {
   type ImmersiveToggle,
 } from './immersiveToggle';
 export {
+  createOutliner,
+  type Outliner,
+  type OutlinerItem,
+} from './outliner';
+export {
   createStatusBar,
   formatSelectionStatus,
   type StatusBar,

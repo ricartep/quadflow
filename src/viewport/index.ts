@@ -1,12 +1,4 @@
-import {
-  cloneMesh,
-  commitHistory,
-  createCubeMesh,
-  createMeshHistory,
-  redoHistory,
-  undoHistory,
-  type Mesh,
-} from '../core';
+import { cloneMesh, createEmptyMesh, type Mesh } from '../core';
 import {
   bindImmersiveLifecycle,
   blockBrowserShortcut,
@@ -28,6 +20,7 @@ import {
   extrudeEdges,
   extrudeFaces,
   extrudeVertices,
+  insetFaces,
   formatTransformStatus,
   loopCut,
   loopCutPreviewPositions,
@@ -43,10 +36,12 @@ import {
 } from '../tools';
 import {
   createImmersiveToggle,
+  createOutliner,
   createShortcutLegend,
   createStatusBar,
   formatSelectionStatus,
   type ImmersiveToggle,
+  type Outliner,
   type ShortcutLegend,
   type StatusBar,
 } from '../ui';
@@ -54,15 +49,33 @@ import '../ui/legend.css';
 import '../ui/status.css';
 import { BlenderOrbitControls, createCamera } from './camera';
 import { createGrid } from './grid';
-import { createMeshView } from './meshView';
+import { createMeshView, type MeshView } from './meshView';
 import {
   collectInScreenBox,
   edgeFactorAtPointer,
   normalizeScreenBox,
   pickElement,
   pickNearestEdge,
+  pickObjectId,
 } from './picking';
 import { createRenderer, createScene } from './renderer';
+import {
+  addSceneObject,
+  clearObjectSelection,
+  createInitialScene,
+  duplicateSceneObjects,
+  getActiveObject,
+  selectAllObjects,
+  setObjectSelection,
+  writeActiveMesh,
+  type SceneState,
+} from './scene';
+import {
+  commitSceneHistory,
+  createSceneHistory,
+  redoSceneHistory,
+  undoSceneHistory,
+} from './sceneHistory';
 import {
   clearSelection,
   createSelectionState,
@@ -97,10 +110,12 @@ export function createViewport(container: HTMLElement): Viewport {
   );
   const controls = new BlenderOrbitControls(camera, renderer.domElement);
 
-  const history = createMeshHistory(createCubeMesh());
-  // Cópia de trabalho independente do snapshot em history.present
-  let mesh: Mesh = cloneMesh(history.present);
-  const meshView = createMeshView(mesh);
+  let sceneState: SceneState = createInitialScene();
+  const sceneHistory = createSceneHistory(sceneState);
+  sceneState = sceneHistory.present;
+  // Cópia de trabalho do objeto ativo
+  let mesh: Mesh = cloneMesh(getActiveObject(sceneState).mesh);
+  const views = new Map<number, MeshView>();
   let selection: SelectionState = createSelectionState();
   let transform: TransformSession | null = null;
   let transformStartX = 0;
@@ -119,7 +134,47 @@ export function createViewport(container: HTMLElement): Viewport {
   });
 
   scene.add(createGrid());
-  scene.add(meshView.group);
+
+  const activeView = (): MeshView => {
+    const view = views.get(sceneState.activeId);
+    if (!view) throw new Error('View do objeto ativo ausente');
+    return view;
+  };
+
+  const rebuildViews = (): void => {
+    for (const view of views.values()) {
+      view.dispose();
+    }
+    views.clear();
+    for (const obj of sceneState.objects) {
+      const view = createMeshView(obj.mesh);
+      views.set(obj.id, view);
+      scene.add(view.group);
+    }
+  };
+  rebuildViews();
+
+  const refreshOutliner = (): void => {
+    outliner.update(
+      sceneState.objects.map((obj) => ({
+        id: obj.id,
+        name: obj.name,
+        kind: obj.kind,
+        selected: sceneState.selectedIds.has(obj.id),
+        active: obj.id === sceneState.activeId,
+      })),
+    );
+  };
+
+  const outliner: Outliner = createOutliner(container, (id, additive) => {
+    if (selection.appMode === 'edit') {
+      selection = toggleObjectEdit(selection);
+    }
+    setObjectSelection(sceneState, id, additive);
+    mesh = cloneMesh(getActiveObject(sceneState).mesh);
+    selection = clearSelection(selection);
+    applySelection();
+  });
 
   type LoopCutSession = {
     edgeId: number | null;
@@ -191,25 +246,59 @@ export function createViewport(container: HTMLElement): Viewport {
       );
       return;
     }
+    const active = getActiveObject(sceneState);
     status.update(
       formatSelectionStatus({
         appMode: selection.appMode,
         domain: selection.domain,
         count: selectedCount(selection),
+        objectCount: sceneState.selectedIds.size,
+        activeName: active.name,
       }),
     );
   };
 
+  const applyObjectHighlights = (): void => {
+    for (const obj of sceneState.objects) {
+      const view = views.get(obj.id);
+      if (!view) continue;
+      const on =
+        selection.appMode === 'object' &&
+        sceneState.selectedIds.has(obj.id);
+      view.setObjectHighlight(on);
+    }
+  };
+
   const applySelection = (): void => {
-    meshView.setSelection(selection, mesh);
+    const view = activeView();
+    if (selection.appMode === 'edit') {
+      view.setSelection(selection, mesh);
+    } else {
+      view.setSelection(clearSelection(selection), mesh);
+    }
+    applyObjectHighlights();
+    refreshOutliner();
     refreshStatus();
+  };
+
+  const commitScene = (): void => {
+    writeActiveMesh(sceneState, mesh);
+    commitSceneHistory(sceneHistory, sceneState);
+    sceneState = sceneHistory.present;
+    mesh = cloneMesh(getActiveObject(sceneState).mesh);
+  };
+
+  const syncActiveView = (): void => {
+    activeView().updateMesh(mesh);
+    if (selection.appMode === 'edit') {
+      activeView().setSelection(selection, mesh);
+    }
   };
 
   const previewTransform = (): void => {
     if (!transform) return;
     applyPositions(mesh, positionsFromSession(transform));
-    meshView.updateMesh(mesh);
-    meshView.setSelection(selection, mesh);
+    syncActiveView();
     refreshStatus();
   };
 
@@ -224,7 +313,7 @@ export function createViewport(container: HTMLElement): Viewport {
     } else {
       restorePositions(mesh, session.originals);
     }
-    meshView.updateMesh(mesh);
+    syncActiveView();
     applySelection();
   };
 
@@ -233,21 +322,31 @@ export function createViewport(container: HTMLElement): Viewport {
     applyPositions(mesh, positionsFromSession(transform));
     transform = null;
     pendingRestore = null;
-    commitHistory(history, mesh);
-    mesh = cloneMesh(history.present);
-    meshView.updateMesh(mesh);
+    commitScene();
+    rebuildViews();
     applySelection();
   };
 
-  const applyHistoryMesh = (next: Mesh): void => {
-    mesh = next;
-    meshView.updateMesh(mesh);
+  const applyHistoryScene = (next: SceneState): void => {
+    sceneState = next;
+    mesh = cloneMesh(getActiveObject(sceneState).mesh);
     selection = clearSelection(selection);
+    rebuildViews();
     applySelection();
   };
 
   const startTransform = (kind: 'grab' | 'rotate' | 'scale'): void => {
-    if (selection.appMode !== 'edit') return;
+    if (selection.appMode === 'object') {
+      // Object Mode: move todos os verts dos objetos selecionados via ativo
+      // (objetos extras: aplica o mesmo delta depois no confirm — MVP: só ativo)
+      const ids = [...mesh.vertices.keys()];
+      const session = beginTransform(mesh, ids, kind);
+      if (!session) return;
+      transform = session;
+      transformOriginArmed = false;
+      refreshStatus();
+      return;
+    }
     const ids = selectionVertexIds(selection, mesh);
     const session = beginTransform(mesh, ids, kind);
     if (!session) return;
@@ -259,15 +358,14 @@ export function createViewport(container: HTMLElement): Viewport {
   const commitMeshChange = (next: Mesh): void => {
     if (next === mesh) return;
     mesh = next;
-    commitHistory(history, mesh);
-    mesh = cloneMesh(history.present);
-    meshView.updateMesh(mesh);
+    commitScene();
+    rebuildViews();
     selection = clearSelection(selection);
     applySelection();
   };
 
   const beginGrabNewVerts = (newVertexIds: number[]): void => {
-    meshView.updateMesh(mesh);
+    syncActiveView();
     selection = {
       appMode: 'edit',
       domain: 'vertex',
@@ -283,17 +381,42 @@ export function createViewport(container: HTMLElement): Viewport {
     if (loopCutSession) cancelLoopCut();
     if (transform) cancelTransform();
 
-    const result = addPrimitive(mesh, 'cube', 1);
-    if (result.newVertexIds.length === 0) return;
-
-    mesh = result.mesh;
-    commitHistory(history, mesh);
-    mesh = cloneMesh(history.present);
-    beginGrabNewVerts(result.newVertexIds);
+    writeActiveMesh(sceneState, mesh);
+    const built = addPrimitive(createEmptyMesh(), 'cube', 1);
+    addSceneObject(sceneState, built.mesh, 'cube');
+    commitSceneHistory(sceneHistory, sceneState);
+    sceneState = sceneHistory.present;
+    mesh = cloneMesh(getActiveObject(sceneState).mesh);
+    rebuildViews();
+    selection = {
+      appMode: 'edit',
+      domain: 'vertex',
+      vertices: new Set(mesh.vertices.keys()),
+      edges: new Set(),
+      faces: new Set(),
+    };
+    applySelection();
+    startTransform('grab');
   };
 
   const runDuplicate = (): void => {
-    if (selection.appMode !== 'edit') return;
+    if (loopCutSession) cancelLoopCut();
+    if (transform) cancelTransform();
+
+    if (selection.appMode === 'object') {
+      writeActiveMesh(sceneState, mesh);
+      const ids = [...sceneState.selectedIds];
+      if (ids.length === 0) return;
+      duplicateSceneObjects(sceneState, ids);
+      commitSceneHistory(sceneHistory, sceneState);
+      sceneState = sceneHistory.present;
+      mesh = cloneMesh(getActiveObject(sceneState).mesh);
+      rebuildViews();
+      selection = clearSelection({ ...selection, appMode: 'object' });
+      applySelection();
+      startTransform('grab');
+      return;
+    }
 
     let ids: number[] = [];
     if (selection.domain === 'face') ids = [...selection.faces];
@@ -304,8 +427,8 @@ export function createViewport(container: HTMLElement): Viewport {
     if (!result || result.newVertexIds.length === 0) return;
 
     mesh = result.mesh;
-    commitHistory(history, mesh);
-    mesh = cloneMesh(history.present);
+    commitScene();
+    rebuildViews();
     beginGrabNewVerts(result.newVertexIds);
   };
 
@@ -326,7 +449,7 @@ export function createViewport(container: HTMLElement): Viewport {
 
     pendingRestore = cloneMesh(mesh);
     mesh = result.mesh;
-    meshView.updateMesh(mesh);
+    syncActiveView();
     selection = {
       appMode: 'edit',
       domain: 'vertex',
@@ -336,6 +459,27 @@ export function createViewport(container: HTMLElement): Viewport {
     };
     applySelection();
     startTransform('grab');
+  };
+
+  const runInset = (): void => {
+    if (selection.appMode !== 'edit') return;
+    if (selection.domain !== 'face' || selection.faces.size === 0) return;
+
+    const result = insetFaces(mesh, [...selection.faces], 0.25);
+    if (!result || result.newVertexIds.length === 0) return;
+
+    pendingRestore = cloneMesh(mesh);
+    mesh = result.mesh;
+    syncActiveView();
+    selection = {
+      appMode: 'edit',
+      domain: 'vertex',
+      vertices: new Set(result.newVertexIds),
+      edges: new Set(),
+      faces: new Set(),
+    };
+    applySelection();
+    startTransform('scale');
   };
 
   const cancelLoopCut = (): void => {
@@ -360,9 +504,8 @@ export function createViewport(container: HTMLElement): Viewport {
     }
 
     mesh = result.mesh;
-    commitHistory(history, mesh);
-    mesh = cloneMesh(history.present);
-    meshView.updateMesh(mesh);
+    commitScene();
+    rebuildViews();
     selection = {
       appMode: 'edit',
       domain: 'vertex',
@@ -505,6 +648,12 @@ export function createViewport(container: HTMLElement): Viewport {
 
     switch (action) {
       case 'toggleObjectEdit':
+        if (selection.appMode === 'object') {
+          writeActiveMesh(sceneState, mesh);
+          mesh = cloneMesh(getActiveObject(sceneState).mesh);
+        } else {
+          writeActiveMesh(sceneState, mesh);
+        }
         selection = toggleObjectEdit(selection);
         applySelection();
         break;
@@ -521,12 +670,22 @@ export function createViewport(container: HTMLElement): Viewport {
         applySelection();
         break;
       case 'selectAll':
-        selection = selectAll(selection, mesh);
-        applySelection();
+        if (selection.appMode === 'object') {
+          selectAllObjects(sceneState);
+          applySelection();
+        } else {
+          selection = selectAll(selection, mesh);
+          applySelection();
+        }
         break;
       case 'deselectAll':
-        selection = clearSelection(selection);
-        applySelection();
+        if (selection.appMode === 'object') {
+          clearObjectSelection(sceneState);
+          applySelection();
+        } else {
+          selection = clearSelection(selection);
+          applySelection();
+        }
         break;
       case 'transformGrab':
         startTransform('grab');
@@ -548,6 +707,9 @@ export function createViewport(container: HTMLElement): Viewport {
         break;
       case 'duplicate':
         runDuplicate();
+        break;
+      case 'inset':
+        runInset();
         break;
       case 'merge':
         runMerge();
@@ -574,13 +736,13 @@ export function createViewport(container: HTMLElement): Viewport {
         confirmTransform();
         break;
       case 'undo': {
-        const previous = undoHistory(history);
-        if (previous) applyHistoryMesh(previous);
+        const previous = undoSceneHistory(sceneHistory);
+        if (previous) applyHistoryScene(previous);
         break;
       }
       case 'redo': {
-        const next = redoHistory(history);
-        if (next) applyHistoryMesh(next);
+        const next = redoSceneHistory(sceneHistory);
+        if (next) applyHistoryScene(next);
         break;
       }
       case 'toggleImmersive':
@@ -660,6 +822,27 @@ export function createViewport(container: HTMLElement): Viewport {
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
 
+    if (selection.appMode === 'object') {
+      const entries = sceneState.objects.map((obj) => ({
+        id: obj.id,
+        faceMesh: views.get(obj.id)!.faceMesh,
+      }));
+      const hitObj = pickObjectId(camera, pointerNdc, entries);
+      if (hitObj === null) {
+        if (!additive) {
+          clearObjectSelection(sceneState);
+          applySelection();
+        }
+        return;
+      }
+      writeActiveMesh(sceneState, mesh);
+      setObjectSelection(sceneState, hitObj, additive);
+      mesh = cloneMesh(getActiveObject(sceneState).mesh);
+      applySelection();
+      return;
+    }
+
+    const view = activeView();
     const hit = pickElement(
       selection.domain,
       mesh,
@@ -667,8 +850,8 @@ export function createViewport(container: HTMLElement): Viewport {
       pointerPx,
       pointerNdc,
       { width: rect.width, height: rect.height },
-      meshView.faceMesh,
-      meshView.getRenderData(),
+      view.faceMesh,
+      view.getRenderData(),
     );
 
     if (hit === null) {
@@ -733,8 +916,7 @@ export function createViewport(container: HTMLElement): Viewport {
     }
 
     if (event.button !== 0) return;
-    if (selection.appMode !== 'edit') return;
-
+    // Object Mode: clique seleciona objeto; Edit: box/click de elementos
     boxDrag = {
       startX: event.clientX,
       startY: event.clientY,
@@ -787,13 +969,15 @@ export function createViewport(container: HTMLElement): Viewport {
     }
 
     if (drag.moved) {
-      boxSelectAt(
-        drag.startX,
-        drag.startY,
-        event.clientX,
-        event.clientY,
-        drag.additive,
-      );
+      if (selection.appMode === 'edit') {
+        boxSelectAt(
+          drag.startX,
+          drag.startY,
+          event.clientX,
+          event.clientY,
+          drag.additive,
+        );
+      }
     } else {
       clickSelectAt(event.clientX, event.clientY, drag.additive);
     }
@@ -853,16 +1037,17 @@ export function createViewport(container: HTMLElement): Viewport {
   };
   tick();
 
+  applySelection();
+
   return {
     updateMesh(next: Mesh): void {
       if (transform) cancelTransform();
-      commitHistory(history, next);
-      mesh = cloneMesh(history.present);
-      meshView.updateMesh(mesh);
+      mesh = next;
+      commitScene();
+      rebuildViews();
       selection = clearSelection(selection);
       applySelection();
     },
-
 
     dispose(): void {
       cancelAnimationFrame(frameId);
@@ -882,9 +1067,11 @@ export function createViewport(container: HTMLElement): Viewport {
       unsubImmersive();
       unbindImmersive();
       immersiveBtn.dispose();
+      outliner.dispose();
       status.dispose();
       legend.dispose();
-      meshView.dispose();
+      for (const view of views.values()) view.dispose();
+      views.clear();
       controls.dispose();
       renderer.dispose();
       renderer.domElement.remove();

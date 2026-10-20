@@ -195,6 +195,24 @@ function pickFace(
   return renderData.faceIdByTriangle[faceIndex] ?? null;
 }
 
+/** Pick de objeto em Object Mode (raycast nas faces de cada view). */
+export function pickObjectId(
+  camera: THREE.Camera,
+  pointerNdc: THREE.Vector2,
+  entries: readonly { id: number; faceMesh: THREE.Mesh }[],
+): number | null {
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(pointerNdc, camera);
+  let best: { id: number; dist: number } | null = null;
+  for (const entry of entries) {
+    const hits = raycaster.intersectObject(entry.faceMesh, false);
+    if (hits.length === 0) continue;
+    const d = hits[0]!.distance;
+    if (!best || d < best.dist) best = { id: entry.id, dist: d };
+  }
+  return best?.id ?? null;
+}
+
 /**
  * Seleciona o elemento do domínio atual sob o cursor.
  */

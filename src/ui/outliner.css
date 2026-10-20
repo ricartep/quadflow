@@ -1,0 +1,65 @@
+.qf-outliner {
+  position: fixed;
+  top: 3.25rem;
+  right: 0.75rem;
+  z-index: 42;
+  width: 11.5rem;
+  max-height: min(50vh, 22rem);
+  overflow: auto;
+  padding: 0.4rem 0.35rem 0.5rem;
+  border: 1px solid #444;
+  border-radius: 2px;
+  background: rgba(22, 22, 22, 0.94);
+  color: #c8c8c8;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.72rem;
+  user-select: none;
+}
+
+.qf-outliner__title {
+  padding: 0.15rem 0.35rem 0.4rem;
+  color: #888;
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.qf-outliner__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qf-outliner__row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.35rem;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.qf-outliner__row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.qf-outliner__row--selected {
+  background: rgba(255, 122, 0, 0.18);
+  color: #ffe0c2;
+}
+
+.qf-outliner__row--active {
+  box-shadow: inset 2px 0 0 #ff7a00;
+}
+
+.qf-outliner__icon {
+  width: 0.9rem;
+  text-align: center;
+  opacity: 0.85;
+}
+
+.qf-outliner__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

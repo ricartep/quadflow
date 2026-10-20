@@ -24,9 +24,13 @@ export function formatSelectionStatus(params: {
   appMode: 'object' | 'edit';
   domain: 'vertex' | 'edge' | 'face';
   count: number;
+  objectCount?: number;
+  activeName?: string;
 }): string {
   if (params.appMode === 'object') {
-    return 'Object';
+    const n = params.objectCount ?? 0;
+    const name = params.activeName ? ` · ${params.activeName}` : '';
+    return `Object · ${n} selecionado(s)${name}`;
   }
   const domainLabel =
     params.domain === 'vertex'

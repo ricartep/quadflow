@@ -14,6 +14,7 @@ export type KeyAction =
   | 'loopCut'
   | 'addPrimitive'
   | 'duplicate'
+  | 'inset'
   | 'axisX'
   | 'axisY'
   | 'axisZ'
@@ -64,7 +65,6 @@ export const KEYMAP: readonly KeyBinding[] = [
   {
     action: 'transformGrab',
     code: 'KeyG',
-    requiresEdit: true,
     blocksDuringTransform: true,
   },
   {
@@ -114,6 +114,11 @@ export const KEYMAP: readonly KeyBinding[] = [
     action: 'duplicate',
     code: 'KeyD',
     shift: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'inset',
+    code: 'KeyI',
     requiresEdit: true,
     blocksDuringTransform: true,
   },

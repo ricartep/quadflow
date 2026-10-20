@@ -15,6 +15,8 @@ export interface MeshView {
   getRenderData(): MeshRenderData;
   updateMesh(mesh: CoreMesh): void;
   setSelection(selection: SelectionState, mesh: CoreMesh): void;
+  /** Destaque do objeto inteiro (Object Mode). */
+  setObjectHighlight(on: boolean): void;
   dispose(): void;
 }
 
@@ -173,6 +175,8 @@ export function createMeshView(mesh: CoreMesh): MeshView {
     mesh,
   );
 
+  let objectHighlighted = false;
+
   return {
     group,
     faceMesh: faces,
@@ -191,9 +195,18 @@ export function createMeshView(mesh: CoreMesh): MeshView {
         },
         next,
       );
+      if (objectHighlighted) {
+        faceMat.emissive = new THREE.Color(0x402000);
+      }
     },
     setSelection(selection: SelectionState, coreMesh: CoreMesh): void {
       applySelectionColors(selection, coreMesh);
+    },
+    setObjectHighlight(on: boolean): void {
+      objectHighlighted = on;
+      faceMat.emissive = on
+        ? new THREE.Color(0x402000)
+        : new THREE.Color(0x000000);
     },
     dispose(): void {
       faceGeom.dispose();

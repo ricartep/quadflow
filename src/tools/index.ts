@@ -22,6 +22,10 @@ export {
   type ExtrudeResult,
 } from './extrude';
 export {
+  insetFaces,
+  type InsetResult,
+} from './inset';
+export {
   findEdgeRing,
   loopCut,
   loopCutPreviewPositions,
