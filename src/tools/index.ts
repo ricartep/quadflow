@@ -1,4 +1,10 @@
 export {
+  extrudeFaces,
+  faceNormal,
+  type ExtrudeResult,
+} from './extrude';
+export { buildMeshFromFaces } from './meshBuild';
+export {
   appendNumericChar,
   applyPositions,
   beginTransform,

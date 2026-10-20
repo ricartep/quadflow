@@ -12,6 +12,7 @@ import {
   appendNumericChar,
   applyPositions,
   beginTransform,
+  extrudeFaces,
   formatTransformStatus,
   positionsFromSession,
   restorePositions,
@@ -72,6 +73,8 @@ export function createViewport(container: HTMLElement): Viewport {
   let transformStartX = 0;
   let transformStartY = 0;
   let transformOriginArmed = false;
+  /** Snapshot pré-extrude: Esc no G após E restaura a malha inteira. */
+  let extrudeRestore: Mesh | null = null;
   const status: StatusBar = createStatusBar(container);
 
   scene.add(createGrid());
@@ -106,8 +109,15 @@ export function createViewport(container: HTMLElement): Viewport {
 
   const cancelTransform = (): void => {
     if (!transform) return;
-    restorePositions(mesh, transform.originals);
+    const session = transform;
     transform = null;
+    if (extrudeRestore) {
+      mesh = cloneMesh(extrudeRestore);
+      extrudeRestore = null;
+      selection = clearSelection(selection);
+    } else {
+      restorePositions(mesh, session.originals);
+    }
     meshView.updateMesh(mesh);
     applySelection();
   };
@@ -116,6 +126,7 @@ export function createViewport(container: HTMLElement): Viewport {
     if (!transform) return;
     applyPositions(mesh, positionsFromSession(transform));
     transform = null;
+    extrudeRestore = null;
     commitHistory(history, mesh);
     mesh = cloneMesh(history.present);
     meshView.updateMesh(mesh);
@@ -137,6 +148,34 @@ export function createViewport(container: HTMLElement): Viewport {
     transform = session;
     transformOriginArmed = false;
     refreshStatus();
+  };
+
+  const runExtrude = (): void => {
+    if (selection.appMode !== 'edit') return;
+    if (selection.domain !== 'face' || selection.faces.size === 0) return;
+
+    extrudeRestore = cloneMesh(mesh);
+    const { mesh: next, newVertexIds } = extrudeFaces(
+      mesh,
+      [...selection.faces],
+      0,
+    );
+    if (newVertexIds.length === 0) {
+      extrudeRestore = null;
+      return;
+    }
+
+    mesh = next;
+    meshView.updateMesh(mesh);
+    selection = {
+      appMode: 'edit',
+      domain: 'vertex',
+      vertices: new Set(newVertexIds),
+      edges: new Set(),
+      faces: new Set(),
+    };
+    applySelection();
+    startTransform('grab');
   };
 
   applySelection();
@@ -195,6 +234,9 @@ export function createViewport(container: HTMLElement): Viewport {
         break;
       case 'transformScale':
         startTransform('scale');
+        break;
+      case 'extrude':
+        runExtrude();
         break;
       case 'axisX':
         transform = toggleAxis(transform!, 'x');
