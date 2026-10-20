@@ -1,4 +1,12 @@
-import { createCubeMesh, type Mesh } from '../core';
+import {
+  cloneMesh,
+  commitHistory,
+  createCubeMesh,
+  createMeshHistory,
+  redoHistory,
+  undoHistory,
+  type Mesh,
+} from '../core';
 import { matchKeyAction, matchNumericInput } from '../input';
 import {
   appendNumericChar,
@@ -55,7 +63,9 @@ export function createViewport(container: HTMLElement): Viewport {
   );
   const controls = new BlenderOrbitControls(camera, renderer.domElement);
 
-  let mesh: Mesh = createCubeMesh();
+  const history = createMeshHistory(createCubeMesh());
+  // Cópia de trabalho independente do snapshot em history.present
+  let mesh: Mesh = cloneMesh(history.present);
   const meshView = createMeshView(mesh);
   let selection: SelectionState = createSelectionState();
   let transform: TransformSession | null = null;
@@ -106,7 +116,16 @@ export function createViewport(container: HTMLElement): Viewport {
     if (!transform) return;
     applyPositions(mesh, positionsFromSession(transform));
     transform = null;
+    commitHistory(history, mesh);
+    mesh = cloneMesh(history.present);
     meshView.updateMesh(mesh);
+    applySelection();
+  };
+
+  const applyHistoryMesh = (next: Mesh): void => {
+    mesh = next;
+    meshView.updateMesh(mesh);
+    selection = clearSelection(selection);
     applySelection();
   };
 
@@ -195,6 +214,16 @@ export function createViewport(container: HTMLElement): Viewport {
       case 'confirmTransform':
         confirmTransform();
         break;
+      case 'undo': {
+        const previous = undoHistory(history);
+        if (previous) applyHistoryMesh(previous);
+        break;
+      }
+      case 'redo': {
+        const next = redoHistory(history);
+        if (next) applyHistoryMesh(next);
+        break;
+      }
     }
   };
 
@@ -325,11 +354,14 @@ export function createViewport(container: HTMLElement): Viewport {
   return {
     updateMesh(next: Mesh): void {
       if (transform) cancelTransform();
-      mesh = next;
-      meshView.updateMesh(next);
+      commitHistory(history, next);
+      mesh = cloneMesh(history.present);
+      meshView.updateMesh(mesh);
       selection = clearSelection(selection);
       applySelection();
     },
+
+
     dispose(): void {
       cancelAnimationFrame(frameId);
       window.removeEventListener('resize', onResize);

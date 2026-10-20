@@ -12,7 +12,9 @@ export type KeyAction =
   | 'axisY'
   | 'axisZ'
   | 'cancelTransform'
-  | 'confirmTransform';
+  | 'confirmTransform'
+  | 'undo'
+  | 'redo';
 
 export interface KeyBinding {
   action: KeyAction;
@@ -76,6 +78,19 @@ export const KEYMAP: readonly KeyBinding[] = [
   { action: 'cancelTransform', code: 'Escape', requiresTransform: true },
   { action: 'confirmTransform', code: 'Enter', requiresTransform: true },
   { action: 'confirmTransform', code: 'NumpadEnter', requiresTransform: true },
+  {
+    action: 'undo',
+    code: 'KeyZ',
+    ctrl: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'redo',
+    code: 'KeyZ',
+    ctrl: true,
+    shift: true,
+    blocksDuringTransform: true,
+  },
 ] as const;
 
 export function matchKeyAction(

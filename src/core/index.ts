@@ -8,7 +8,17 @@ export type {
   Vertex,
 } from './types';
 export type { MeshIssue } from './validate';
+export type { MeshHistory } from './history';
 
+export { cloneMesh } from './clone';
+export {
+  canRedo,
+  canUndo,
+  commitHistory,
+  createMeshHistory,
+  redoHistory,
+  undoHistory,
+} from './history';
 export { createCubeMesh, createEmptyMesh } from './mesh';
 export {
   faceVertices,
