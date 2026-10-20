@@ -35,16 +35,19 @@ import {
   type TransformSession,
 } from '../tools';
 import {
+  createAddMenu,
   createImmersiveToggle,
   createOutliner,
   createShortcutLegend,
   createStatusBar,
   formatSelectionStatus,
+  type AddMenu,
   type ImmersiveToggle,
   type Outliner,
   type ShortcutLegend,
   type StatusBar,
 } from '../ui';
+import type { PrimitiveKind } from '../tools';
 import '../ui/legend.css';
 import '../ui/status.css';
 import { BlenderOrbitControls, createCamera } from './camera';
@@ -377,13 +380,13 @@ export function createViewport(container: HTMLElement): Viewport {
     startTransform('grab');
   };
 
-  const runAddPrimitive = (): void => {
+  const spawnPrimitive = (kind: PrimitiveKind): void => {
     if (loopCutSession) cancelLoopCut();
     if (transform) cancelTransform();
 
     writeActiveMesh(sceneState, mesh);
-    const built = addPrimitive(createEmptyMesh(), 'cube', 1);
-    addSceneObject(sceneState, built.mesh, 'cube');
+    const built = addPrimitive(createEmptyMesh(), kind, 1);
+    addSceneObject(sceneState, built.mesh, kind);
     commitSceneHistory(sceneHistory, sceneState);
     sceneState = sceneHistory.present;
     mesh = cloneMesh(getActiveObject(sceneState).mesh);
@@ -397,6 +400,16 @@ export function createViewport(container: HTMLElement): Viewport {
     };
     applySelection();
     startTransform('grab');
+  };
+
+  const addMenu: AddMenu = createAddMenu(container, (kind) => {
+    spawnPrimitive(kind);
+  });
+
+  const runAddPrimitive = (): void => {
+    if (loopCutSession) cancelLoopCut();
+    if (transform) cancelTransform();
+    addMenu.open();
   };
 
   const runDuplicate = (): void => {
@@ -611,6 +624,16 @@ export function createViewport(container: HTMLElement): Viewport {
     // Fase capture: tenta ganhar do handler padrão do browser
     if (shouldPreventBrowserDefault(event)) {
       blockBrowserShortcut(event);
+    }
+
+    if (addMenu.isOpen()) {
+      // Esc é tratado no próprio menu; bloqueia outros atalhos
+      if (event.code !== 'Escape') {
+        // deixa o menu consumir cliques; teclas de atalho não disparam ops
+      }
+      if (event.code !== 'Escape' && event.code !== 'F11') {
+        return;
+      }
     }
 
     if (loopCutSession) {
@@ -1067,6 +1090,7 @@ export function createViewport(container: HTMLElement): Viewport {
       unsubImmersive();
       unbindImmersive();
       immersiveBtn.dispose();
+      addMenu.dispose();
       outliner.dispose();
       status.dispose();
       legend.dispose();

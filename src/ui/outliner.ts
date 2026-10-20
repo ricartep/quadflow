@@ -3,7 +3,7 @@ import './outliner.css';
 export interface OutlinerItem {
   id: number;
   name: string;
-  kind: 'cube' | 'plane' | 'mesh';
+  kind: string;
   selected: boolean;
   active: boolean;
 }
@@ -42,7 +42,15 @@ export function createOutliner(
       const icon = document.createElement('span');
       icon.className = 'qf-outliner__icon';
       icon.textContent =
-        item.kind === 'cube' ? '◻' : item.kind === 'plane' ? '▭' : '◇';
+        item.kind === 'cube'
+          ? '◻'
+          : item.kind === 'plane' || item.kind === 'grid'
+            ? '▭'
+            : item.kind === 'uvSphere' || item.kind === 'icoSphere'
+              ? '○'
+              : item.kind === 'cylinder' || item.kind === 'cone'
+                ? '⬡'
+                : '◇';
 
       const name = document.createElement('span');
       name.className = 'qf-outliner__name';

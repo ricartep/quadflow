@@ -1,0 +1,55 @@
+.qf-add-menu {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  min-width: 11rem;
+  padding: 0.45rem 0 0.35rem;
+  border: 1px solid #555;
+  border-radius: 2px;
+  background: rgba(28, 28, 28, 0.97);
+  color: #d0d0d0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.8rem;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.qf-add-menu__title {
+  padding: 0.25rem 0.85rem 0.45rem;
+  color: #888;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.qf-add-menu__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qf-add-menu__item {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.qf-add-menu__item:hover,
+.qf-add-menu__item:focus {
+  background: rgba(255, 122, 0, 0.22);
+  color: #fff;
+  outline: none;
+}
+
+.qf-add-menu__hint {
+  margin: 0.35rem 0.85rem 0.15rem;
+  font-size: 0.65rem;
+  color: #666;
+}

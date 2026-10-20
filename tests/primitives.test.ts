@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCubeMesh, createEmptyMesh, validateMesh } from '../src/core';
-import { addPrimitive } from '../src/tools/primitives';
+import { addPrimitive, PRIMITIVE_MENU } from '../src/tools/primitives';
 
 describe('addPrimitive', () => {
   it('adiciona cubo à malha vazia', () => {
@@ -28,5 +28,35 @@ describe('addPrimitive', () => {
     expect(newVertexIds).toHaveLength(4);
     expect(mesh.faces.size).toBe(1);
     expect(mesh.vertices.size).toBe(4);
+  });
+
+  it('menu cobre as primitivas comuns', () => {
+    expect(PRIMITIVE_MENU.map((p) => p.kind)).toEqual([
+      'plane',
+      'cube',
+      'circle',
+      'uvSphere',
+      'icoSphere',
+      'cylinder',
+      'cone',
+      'torus',
+      'grid',
+    ]);
+  });
+
+  it('uvSphere e cylinder fecham sem erro de twin', () => {
+    const sphere = addPrimitive(createEmptyMesh(), 'uvSphere', 1);
+    expect(validateMesh(sphere.mesh)).toEqual([]);
+    const cyl = addPrimitive(createEmptyMesh(), 'cylinder', 1);
+    expect(validateMesh(cyl.mesh)).toEqual([]);
+  });
+
+  it('icoSphere e torus são malhas fechadas', () => {
+    expect(validateMesh(addPrimitive(createEmptyMesh(), 'icoSphere', 1).mesh)).toEqual(
+      [],
+    );
+    expect(validateMesh(addPrimitive(createEmptyMesh(), 'torus', 1).mesh)).toEqual(
+      [],
+    );
   });
 });

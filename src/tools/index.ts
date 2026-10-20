@@ -11,6 +11,7 @@ export {
 } from './edit';
 export {
   addPrimitive,
+  PRIMITIVE_MENU,
   type AddPrimitiveResult,
   type PrimitiveKind,
 } from './primitives';

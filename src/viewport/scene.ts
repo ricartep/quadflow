@@ -1,6 +1,7 @@
 import { cloneMesh, createCubeMesh, type Mesh } from '../core';
+import type { PrimitiveKind } from '../tools/primitives';
 
-export type ObjectKind = 'cube' | 'plane' | 'mesh';
+export type ObjectKind = PrimitiveKind | 'mesh';
 
 export interface SceneObject {
   id: number;
@@ -14,8 +15,21 @@ export interface SceneState {
   activeId: number;
   selectedIds: Set<number>;
   nextId: number;
-  counters: { cube: number; plane: number; mesh: number };
+  counters: Partial<Record<ObjectKind, number>>;
 }
+
+const KIND_LABEL: Record<ObjectKind, string> = {
+  plane: 'Plane',
+  cube: 'Cube',
+  circle: 'Circle',
+  uvSphere: 'Sphere',
+  icoSphere: 'Icosphere',
+  cylinder: 'Cylinder',
+  cone: 'Cone',
+  torus: 'Torus',
+  grid: 'Grid',
+  mesh: 'Mesh',
+};
 
 export function createInitialScene(): SceneState {
   const mesh = createCubeMesh();
@@ -24,7 +38,7 @@ export function createInitialScene(): SceneState {
     activeId: 0,
     selectedIds: new Set([0]),
     nextId: 1,
-    counters: { cube: 1, plane: 0, mesh: 0 },
+    counters: { cube: 1 },
   };
 }
 
@@ -57,10 +71,9 @@ export function getActiveObject(scene: SceneState): SceneObject {
 }
 
 function nextName(scene: SceneState, kind: ObjectKind): string {
-  const label =
-    kind === 'cube' ? 'Cube' : kind === 'plane' ? 'Plane' : 'Mesh';
-  scene.counters[kind] += 1;
-  const n = scene.counters[kind];
+  const label = KIND_LABEL[kind];
+  const n = (scene.counters[kind] ?? 0) + 1;
+  scene.counters[kind] = n;
   return n <= 1 ? label : `${label}.${String(n - 1).padStart(3, '0')}`;
 }
 

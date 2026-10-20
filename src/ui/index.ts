@@ -1,5 +1,9 @@
 export { initGate } from './gate';
 export {
+  createAddMenu,
+  type AddMenu,
+} from './addMenu';
+export {
   createShortcutLegend,
   type LegendContext,
   type ShortcutLegend,
