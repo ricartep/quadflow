@@ -1,0 +1,1 @@
+export { subdivideCatmullClark } from './catmullClark';
