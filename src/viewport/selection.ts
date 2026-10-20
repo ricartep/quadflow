@@ -107,6 +107,37 @@ export function toggleItem(
   return next;
 }
 
+/** Define a seleção do domínio atual (substitui ou une com Shift). */
+export function setSelectionIds(
+  state: SelectionState,
+  ids: readonly Id[],
+  additive: boolean,
+): SelectionState {
+  if (state.appMode !== 'edit') return state;
+
+  const next = {
+    ...state,
+    vertices: new Set(state.vertices),
+    edges: new Set(state.edges),
+    faces: new Set(state.faces),
+  };
+
+  const bucket =
+    state.domain === 'vertex'
+      ? next.vertices
+      : state.domain === 'edge'
+        ? next.edges
+        : next.faces;
+
+  if (!additive) {
+    bucket.clear();
+  }
+  for (const id of ids) {
+    bucket.add(id);
+  }
+  return next;
+}
+
 /** Troca domínio 1/2/3 e converte a seleção (estilo Blender). */
 export function setDomain(
   state: SelectionState,

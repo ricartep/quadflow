@@ -63,6 +63,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
         { keys: 'M', desc: 'Merge no centróide' },
         { keys: 'X', desc: 'Apagar vértices' },
         { keys: 'Clique', desc: 'Selecionar · Shift acumula' },
+        { keys: 'Arrastar', desc: 'Seleção em caixa (vários)' },
       ],
     };
   }
@@ -77,6 +78,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
         { keys: 'X', desc: 'Dissolve (fundir faces)' },
         { keys: 'M', desc: 'Merge dos extremos' },
         { keys: 'Clique', desc: 'Selecionar · Shift acumula' },
+        { keys: 'Arrastar', desc: 'Seleção em caixa (vários)' },
       ],
     };
   }
@@ -89,6 +91,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
       { keys: 'X', desc: 'Apagar faces' },
       { keys: 'M', desc: 'Merge dos vértices da face' },
       { keys: 'Clique', desc: 'Selecionar · Shift acumula' },
+      { keys: 'Arrastar', desc: 'Seleção em caixa (vários)' },
     ],
   };
 }

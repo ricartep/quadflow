@@ -45,7 +45,11 @@ import '../ui/status.css';
 import { BlenderOrbitControls, createCamera } from './camera';
 import { createGrid } from './grid';
 import { createMeshView } from './meshView';
-import { pickElement } from './picking';
+import {
+  collectInScreenBox,
+  normalizeScreenBox,
+  pickElement,
+} from './picking';
 import { createRenderer, createScene } from './renderer';
 import {
   clearSelection,
@@ -54,11 +58,14 @@ import {
   selectedCount,
   selectionVertexIds,
   setDomain,
+  setSelectionIds,
   toggleItem,
   toggleObjectEdit,
   type SelectionState,
 } from './selection';
 import * as THREE from 'three';
+
+const BOX_DRAG_THRESHOLD_PX = 5;
 
 export interface Viewport {
   updateMesh(mesh: Mesh): void;
@@ -385,6 +392,98 @@ export function createViewport(container: HTMLElement): Viewport {
     previewTransform();
   };
 
+  type BoxDrag = {
+    startX: number;
+    startY: number;
+    additive: boolean;
+    moved: boolean;
+    pointerId: number;
+  };
+  let boxDrag: BoxDrag | null = null;
+  let marqueeEl: HTMLDivElement | null = null;
+
+  const hideMarquee = (): void => {
+    marqueeEl?.remove();
+    marqueeEl = null;
+  };
+
+  const showMarquee = (x0: number, y0: number, x1: number, y1: number): void => {
+    if (!marqueeEl) {
+      marqueeEl = document.createElement('div');
+      marqueeEl.className = 'qf-marquee';
+      container.appendChild(marqueeEl);
+    }
+    const left = Math.min(x0, x1);
+    const top = Math.min(y0, y1);
+    marqueeEl.style.left = `${left}px`;
+    marqueeEl.style.top = `${top}px`;
+    marqueeEl.style.width = `${Math.abs(x1 - x0)}px`;
+    marqueeEl.style.height = `${Math.abs(y1 - y0)}px`;
+  };
+
+  const clickSelectAt = (
+    clientX: number,
+    clientY: number,
+    additive: boolean,
+  ): void => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const pointerPx = new THREE.Vector2(
+      clientX - rect.left,
+      clientY - rect.top,
+    );
+    const pointerNdc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+
+    const hit = pickElement(
+      selection.domain,
+      mesh,
+      camera,
+      pointerPx,
+      pointerNdc,
+      { width: rect.width, height: rect.height },
+      meshView.faceMesh,
+      meshView.getRenderData(),
+    );
+
+    if (hit === null) {
+      if (!additive) {
+        selection = clearSelection(selection);
+        applySelection();
+      }
+      return;
+    }
+
+    selection = toggleItem(selection, hit, additive);
+    applySelection();
+  };
+
+  const boxSelectAt = (
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    additive: boolean,
+  ): void => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const box = normalizeScreenBox(
+      x0 - rect.left,
+      y0 - rect.top,
+      x1 - rect.left,
+      y1 - rect.top,
+    );
+    const ids = collectInScreenBox(
+      selection.domain,
+      mesh,
+      camera,
+      box,
+      { width: rect.width, height: rect.height },
+    );
+    selection = setSelectionIds(selection, ids, additive);
+    applySelection();
+  };
+
   const onPointerDown = (event: PointerEvent): void => {
     if (transform) {
       if (event.button === 0) {
@@ -400,43 +499,63 @@ export function createViewport(container: HTMLElement): Viewport {
     if (event.button !== 0) return;
     if (selection.appMode !== 'edit') return;
 
-    const rect = renderer.domElement.getBoundingClientRect();
-    const pointerPx = new THREE.Vector2(
-      event.clientX - rect.left,
-      event.clientY - rect.top,
-    );
-    const pointerNdc = new THREE.Vector2(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
-    );
+    boxDrag = {
+      startX: event.clientX,
+      startY: event.clientY,
+      additive: event.shiftKey,
+      moved: false,
+      pointerId: event.pointerId,
+    };
+    renderer.domElement.setPointerCapture(event.pointerId);
+  };
 
-    const hit = pickElement(
-      selection.domain,
-      mesh,
-      camera,
-      pointerPx,
-      pointerNdc,
-      { width: rect.width, height: rect.height },
-      meshView.faceMesh,
-      meshView.getRenderData(),
-    );
-
-    if (hit === null) {
-      if (!event.shiftKey) {
-        selection = clearSelection(selection);
-        applySelection();
+  const onPointerMoveSelect = (event: PointerEvent): void => {
+    if (boxDrag && event.pointerId === boxDrag.pointerId) {
+      const dx = event.clientX - boxDrag.startX;
+      const dy = event.clientY - boxDrag.startY;
+      if (
+        !boxDrag.moved &&
+        Math.hypot(dx, dy) >= BOX_DRAG_THRESHOLD_PX
+      ) {
+        boxDrag.moved = true;
+      }
+      if (boxDrag.moved) {
+        showMarquee(
+          boxDrag.startX,
+          boxDrag.startY,
+          event.clientX,
+          event.clientY,
+        );
       }
       return;
     }
 
-    selection = toggleItem(selection, hit, event.shiftKey);
-    applySelection();
-  };
-
-  const onPointerMove = (event: PointerEvent): void => {
     if (!transform) return;
     if (transform.numericBuffer !== '') return;
     updateMouseTransform(event.clientX, event.clientY);
+  };
+
+  const onPointerUp = (event: PointerEvent): void => {
+    if (!boxDrag || event.pointerId !== boxDrag.pointerId) return;
+
+    const drag = boxDrag;
+    boxDrag = null;
+    hideMarquee();
+    if (renderer.domElement.hasPointerCapture(event.pointerId)) {
+      renderer.domElement.releasePointerCapture(event.pointerId);
+    }
+
+    if (drag.moved) {
+      boxSelectAt(
+        drag.startX,
+        drag.startY,
+        event.clientX,
+        event.clientY,
+        drag.additive,
+      );
+    } else {
+      clickSelectAt(event.clientX, event.clientY, drag.additive);
+    }
   };
 
   const onContextMenu = (event: Event): void => {
@@ -445,6 +564,10 @@ export function createViewport(container: HTMLElement): Viewport {
 
   // Captura origem do modal no primeiro movimento após G/R/S
   const onPointerMoveArm = (event: PointerEvent): void => {
+    if (boxDrag) {
+      onPointerMoveSelect(event);
+      return;
+    }
     if (!transform) {
       transformOriginArmed = false;
       return;
@@ -455,11 +578,13 @@ export function createViewport(container: HTMLElement): Viewport {
       transformOriginArmed = true;
       return;
     }
-    onPointerMove(event);
+    onPointerMoveSelect(event);
   };
 
   window.addEventListener('keydown', onKeyDown);
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
+  renderer.domElement.addEventListener('pointerup', onPointerUp);
+  renderer.domElement.addEventListener('pointercancel', onPointerUp);
   window.addEventListener('pointermove', onPointerMoveArm);
   renderer.domElement.addEventListener('contextmenu', onContextMenu);
 
@@ -499,7 +624,10 @@ export function createViewport(container: HTMLElement): Viewport {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('pointermove', onPointerMoveArm);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp);
+      renderer.domElement.removeEventListener('pointercancel', onPointerUp);
       renderer.domElement.removeEventListener('contextmenu', onContextMenu);
+      hideMarquee();
       status.dispose();
       legend.dispose();
       meshView.dispose();

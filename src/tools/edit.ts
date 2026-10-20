@@ -1,16 +1,22 @@
 import { faceVertices, type Id, type Mesh, type Vec3 } from '../core';
-import { buildMeshFromFaces } from './meshBuild';
+import {
+  buildMeshFromFaces,
+  copyPositions as copyMeshPositions,
+  extractWires,
+} from './meshBuild';
 
 function copyPositions(mesh: Mesh): Map<Id, Vec3> {
-  const positions = new Map<Id, Vec3>();
-  for (const [id, vertex] of mesh.vertices) {
-    positions.set(id, {
-      x: vertex.position.x,
-      y: vertex.position.y,
-      z: vertex.position.z,
-    });
+  return copyMeshPositions(mesh);
+}
+
+function edgeInLoop(loop: Id[], a: Id, b: Id): boolean {
+  const n = loop.length;
+  for (let i = 0; i < n; i += 1) {
+    const u = loop[i]!;
+    const v = loop[(i + 1) % n]!;
+    if ((u === a && v === b) || (u === b && v === a)) return true;
   }
-  return positions;
+  return false;
 }
 
 function allFaceLoops(mesh: Mesh): Id[][] {
@@ -251,7 +257,26 @@ export function deleteVertices(mesh: Mesh, vertexIds: readonly Id[]): Mesh {
     faces.push(loop);
   }
 
-  if (faces.length === 0) {
+  // Wires existentes que não usam verts apagados
+  const wires: [Id, Id][] = extractWires(mesh).filter(
+    ([a, b]) => !remove.has(a) && !remove.has(b),
+  );
+
+  // Arestas entre verts sobreviventes que perderam todas as faces → viram wire
+  // (ex.: após extrude de aresta, apagar só um dos verts novos)
+  const wireKeys = new Set(wires.map(([a, b]) => (a < b ? `${a}:${b}` : `${b}:${a}`)));
+  for (const edge of mesh.edges.values()) {
+    const [a, b] = edgeEndpoints(mesh, edge.id);
+    if (remove.has(a) || remove.has(b)) continue;
+    const stillInFace = faces.some((loop) => edgeInLoop(loop, a, b));
+    if (stillInFace) continue;
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    if (wireKeys.has(key)) continue;
+    wireKeys.add(key);
+    wires.push([a, b]);
+  }
+
+  if (faces.length === 0 && wires.length === 0 && positions.size === 0) {
     return {
       vertices: new Map(),
       halfEdges: new Map(),
@@ -260,7 +285,7 @@ export function deleteVertices(mesh: Mesh, vertexIds: readonly Id[]): Mesh {
     };
   }
 
-  return buildMeshFromFaces(positions, faces);
+  return buildMeshFromFaces(positions, faces, wires);
 }
 
 /** Dissolve arestas: funde as duas faces adjacentes num n-gon. */

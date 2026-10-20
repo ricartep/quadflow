@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Id, Mesh } from '../core';
+import { faceVertices, type Id, type Mesh } from '../core';
 import type { MeshRenderData } from './meshGeometry';
 import { edgeVertices } from './meshTopology';
 import type { SelectDomain } from './selection';
@@ -10,6 +10,13 @@ const EDGE_THRESHOLD_PX = 10;
 export interface ScreenSize {
   width: number;
   height: number;
+}
+
+export interface ScreenBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
 }
 
 function projectToScreen(
@@ -35,6 +42,38 @@ function distPointToSegment2D(
   const t = THREE.MathUtils.clamp(p.clone().sub(a).dot(ab) / lenSq, 0, 1);
   const closest = a.clone().add(ab.multiplyScalar(t));
   return p.distanceTo(closest);
+}
+
+function edgeIsManifold(mesh: Mesh, edgeId: Id): boolean {
+  const edge = mesh.edges.get(edgeId);
+  if (!edge) return false;
+  const he = mesh.halfEdges.get(edge.halfEdge);
+  return he !== undefined && he.twin !== null;
+}
+
+function edgeEndpointKey(mesh: Mesh, edgeId: Id): string {
+  const [a, b] = edgeVertices(mesh, edgeId);
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+/**
+ * Após extrude de aresta manifold, existem 2 Edge com os mesmos extremos.
+ * Preferimos a manifold (aresta “antiga”) para pick/box-select.
+ */
+function uniqueEdgeIdsPreferManifold(mesh: Mesh): Id[] {
+  const best = new Map<string, Id>();
+  for (const edge of mesh.edges.values()) {
+    const key = edgeEndpointKey(mesh, edge.id);
+    const prev = best.get(key);
+    if (prev === undefined) {
+      best.set(key, edge.id);
+      continue;
+    }
+    if (!edgeIsManifold(mesh, prev) && edgeIsManifold(mesh, edge.id)) {
+      best.set(key, edge.id);
+    }
+  }
+  return [...best.values()];
 }
 
 function pickVertex(
@@ -74,8 +113,8 @@ function pickEdge(
   let bestId: Id | null = null;
   let bestDist = EDGE_THRESHOLD_PX;
 
-  for (const edge of mesh.edges.values()) {
-    const [aId, bId] = edgeVertices(mesh, edge.id);
+  for (const edgeId of uniqueEdgeIdsPreferManifold(mesh)) {
+    const [aId, bId] = edgeVertices(mesh, edgeId);
     const a = mesh.vertices.get(aId)!;
     const b = mesh.vertices.get(bId)!;
     const sa = projectToScreen(
@@ -91,7 +130,7 @@ function pickEdge(
     const d = distPointToSegment2D(pointer, sa, sb);
     if (d < bestDist) {
       bestDist = d;
-      bestId = edge.id;
+      bestId = edgeId;
     }
   }
   return bestId;
@@ -114,8 +153,6 @@ function pickFace(
 
 /**
  * Seleciona o elemento do domínio atual sob o cursor.
- * `pointerPx` em coordenadas do canvas (origem top-left).
- * `pointerNdc` em NDC Three (-1..1) para raycast de faces.
  */
 export function pickElement(
   domain: SelectDomain,
@@ -135,4 +172,108 @@ export function pickElement(
     case 'face':
       return pickFace(faceMesh, camera, pointerNdc, renderData);
   }
+}
+
+function pointInBox(p: THREE.Vector2, box: ScreenBox): boolean {
+  return (
+    p.x >= box.minX &&
+    p.x <= box.maxX &&
+    p.y >= box.minY &&
+    p.y <= box.maxY
+  );
+}
+
+function segmentHitsBox(
+  a: THREE.Vector2,
+  b: THREE.Vector2,
+  box: ScreenBox,
+): boolean {
+  if (pointInBox(a, box) || pointInBox(b, box)) return true;
+  // Amostra o segmento (suficiente para seleção em caixa)
+  for (let i = 1; i <= 4; i += 1) {
+    const t = i / 5;
+    const p = a.clone().lerp(b, t);
+    if (pointInBox(p, box)) return true;
+  }
+  return false;
+}
+
+/** Elementos do domínio cuja projeção intersecta a caixa na tela. */
+export function collectInScreenBox(
+  domain: SelectDomain,
+  mesh: Mesh,
+  camera: THREE.Camera,
+  box: ScreenBox,
+  size: ScreenSize,
+): Id[] {
+  const ids: Id[] = [];
+
+  if (domain === 'vertex') {
+    for (const vertex of mesh.vertices.values()) {
+      const screen = projectToScreen(
+        new THREE.Vector3(
+          vertex.position.x,
+          vertex.position.y,
+          vertex.position.z,
+        ),
+        camera,
+        size,
+      );
+      if (pointInBox(screen, box)) ids.push(vertex.id);
+    }
+    return ids;
+  }
+
+  if (domain === 'edge') {
+    for (const edgeId of uniqueEdgeIdsPreferManifold(mesh)) {
+      const [aId, bId] = edgeVertices(mesh, edgeId);
+      const a = mesh.vertices.get(aId)!;
+      const b = mesh.vertices.get(bId)!;
+      const sa = projectToScreen(
+        new THREE.Vector3(a.position.x, a.position.y, a.position.z),
+        camera,
+        size,
+      );
+      const sb = projectToScreen(
+        new THREE.Vector3(b.position.x, b.position.y, b.position.z),
+        camera,
+        size,
+      );
+      if (segmentHitsBox(sa, sb, box)) ids.push(edgeId);
+    }
+    return ids;
+  }
+
+  for (const face of mesh.faces.values()) {
+    const loop = faceVertices(mesh, face.id);
+    let hit = false;
+    for (const vid of loop) {
+      const v = mesh.vertices.get(vid)!;
+      const screen = projectToScreen(
+        new THREE.Vector3(v.position.x, v.position.y, v.position.z),
+        camera,
+        size,
+      );
+      if (pointInBox(screen, box)) {
+        hit = true;
+        break;
+      }
+    }
+    if (hit) ids.push(face.id);
+  }
+  return ids;
+}
+
+export function normalizeScreenBox(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): ScreenBox {
+  return {
+    minX: Math.min(x0, x1),
+    minY: Math.min(y0, y1),
+    maxX: Math.max(x0, x1),
+    maxY: Math.max(y0, y1),
+  };
 }

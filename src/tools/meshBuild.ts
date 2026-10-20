@@ -168,7 +168,8 @@ export function buildMeshFromFaces(
   faces: readonly Id[][],
   wires: readonly [Id, Id][] = [],
 ): Mesh {
-  const used = new Set<Id>();
+  // Mantém todos os vértices em `positions` (evita apagar verts órfãos no delete).
+  const used = new Set<Id>(positions.keys());
   for (const loop of faces) {
     for (const id of loop) used.add(id);
   }

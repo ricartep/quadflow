@@ -79,6 +79,27 @@ describe('deleteVertices', () => {
     expect(out.faces.size).toBeLessThan(6);
     expect(out.faces.size).toBeGreaterThan(0);
   });
+
+  it('após extrude de vários verts, apaga só o selecionado', async () => {
+    const { extrudeVertices } = await import('../src/tools/extrude');
+    const mesh = createCubeMesh();
+    const ids = [...mesh.vertices.keys()].slice(0, 3);
+    const { mesh: extruded, newVertexIds } = extrudeVertices(
+      mesh,
+      ids,
+      1,
+    );
+    expect(newVertexIds).toHaveLength(3);
+
+    const kill = newVertexIds[1]!;
+    const keep = newVertexIds.filter((id) => id !== kill);
+    const out = deleteVertices(extruded, [kill]);
+
+    expect(out.vertices.has(kill)).toBe(false);
+    for (const id of keep) {
+      expect(out.vertices.has(id)).toBe(true);
+    }
+  });
 });
 
 describe('dissolveEdges', () => {

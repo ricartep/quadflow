@@ -6,6 +6,7 @@ import {
   selectAll,
   selectedCount,
   setDomain,
+  setSelectionIds,
   toggleItem,
   toggleObjectEdit,
 } from '../src/viewport/selection';
@@ -98,5 +99,20 @@ describe('selection state', () => {
     state = toggleItem(state, b, true);
     state = setDomain(state, 'edge', mesh);
     expect(state.edges.has(edgeId)).toBe(true);
+  });
+
+  it('setSelectionIds substitui ou une (Shift)', () => {
+    const mesh = createCubeMesh();
+    const ids = [...mesh.vertices.keys()];
+    let state = toggleObjectEdit(createSelectionState());
+
+    state = setSelectionIds(state, [ids[0]!, ids[1]!], false);
+    expect(state.vertices).toEqual(new Set([ids[0]!, ids[1]!]));
+
+    state = setSelectionIds(state, [ids[2]!], true);
+    expect(state.vertices).toEqual(new Set([ids[0]!, ids[1]!, ids[2]!]));
+
+    state = setSelectionIds(state, [ids[3]!], false);
+    expect(state.vertices).toEqual(new Set([ids[3]!]));
   });
 });
