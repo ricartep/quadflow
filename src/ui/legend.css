@@ -1,7 +1,7 @@
 .qf-legend {
   position: fixed;
   top: 0.75rem;
-  right: 0.75rem;
+  left: 0.75rem;
   z-index: 40;
   width: min(280px, calc(100vw - 1.5rem));
   padding: 0.85rem 1rem 0.75rem;
