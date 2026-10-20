@@ -12,8 +12,12 @@ import {
   appendNumericChar,
   applyPositions,
   beginTransform,
+  deleteFaces,
+  deleteVertices,
+  dissolveEdges,
   extrudeFaces,
   formatTransformStatus,
+  mergeVerticesAtCenter,
   positionsFromSession,
   restorePositions,
   setMouseAngle,
@@ -150,6 +154,16 @@ export function createViewport(container: HTMLElement): Viewport {
     refreshStatus();
   };
 
+  const commitMeshChange = (next: Mesh): void => {
+    if (next === mesh) return;
+    mesh = next;
+    commitHistory(history, mesh);
+    mesh = cloneMesh(history.present);
+    meshView.updateMesh(mesh);
+    selection = clearSelection(selection);
+    applySelection();
+  };
+
   const runExtrude = (): void => {
     if (selection.appMode !== 'edit') return;
     if (selection.domain !== 'face' || selection.faces.size === 0) return;
@@ -176,6 +190,27 @@ export function createViewport(container: HTMLElement): Viewport {
     };
     applySelection();
     startTransform('grab');
+  };
+
+  const runMerge = (): void => {
+    if (selection.appMode !== 'edit') return;
+    const ids = [...selectionVertexIds(selection, mesh)];
+    commitMeshChange(mergeVerticesAtCenter(mesh, ids));
+  };
+
+  const runDelete = (): void => {
+    if (selection.appMode !== 'edit') return;
+    if (selection.domain === 'face' && selection.faces.size > 0) {
+      commitMeshChange(deleteFaces(mesh, [...selection.faces]));
+      return;
+    }
+    if (selection.domain === 'vertex' && selection.vertices.size > 0) {
+      commitMeshChange(deleteVertices(mesh, [...selection.vertices]));
+      return;
+    }
+    if (selection.domain === 'edge' && selection.edges.size > 0) {
+      commitMeshChange(dissolveEdges(mesh, [...selection.edges]));
+    }
   };
 
   applySelection();
@@ -237,6 +272,12 @@ export function createViewport(container: HTMLElement): Viewport {
         break;
       case 'extrude':
         runExtrude();
+        break;
+      case 'merge':
+        runMerge();
+        break;
+      case 'delete':
+        runDelete();
         break;
       case 'axisX':
         transform = toggleAxis(transform!, 'x');

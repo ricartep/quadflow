@@ -113,10 +113,13 @@ function linkTwinsAndEdges(builder: MeshBuilder): void {
     unpaired.delete(key);
   }
 
-  if (unpaired.size > 0) {
-    throw new Error(
-      `Malha aberta: ${unpaired.size} half-edge(s) sem twin`,
-    );
+  // Bordas (malha aberta): half-edge sem twin, mas com edge própria.
+  for (const heId of unpaired.values()) {
+    const he = builder.halfEdges.get(heId)!;
+    const edgeId = builder.nextEdgeId++;
+    he.twin = null;
+    he.edge = edgeId;
+    builder.edges.set(edgeId, { id: edgeId, halfEdge: he.id });
   }
 }
 

@@ -9,6 +9,8 @@ export type KeyAction =
   | 'transformRotate'
   | 'transformScale'
   | 'extrude'
+  | 'merge'
+  | 'delete'
   | 'axisX'
   | 'axisY'
   | 'axisZ'
@@ -76,6 +78,18 @@ export const KEYMAP: readonly KeyBinding[] = [
   {
     action: 'extrude',
     code: 'KeyE',
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'merge',
+    code: 'KeyM',
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'delete',
+    code: 'KeyX',
     requiresEdit: true,
     blocksDuringTransform: true,
   },

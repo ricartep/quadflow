@@ -1,4 +1,11 @@
 export {
+  deleteFaces,
+  deleteVertices,
+  dissolveEdges,
+  mergeFaceLoops,
+  mergeVerticesAtCenter,
+} from './edit';
+export {
   extrudeFaces,
   faceNormal,
   type ExtrudeResult,
