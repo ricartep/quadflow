@@ -29,6 +29,7 @@ import {
   formatTransformStatus,
   loopCut,
   loopCutPreviewPositions,
+  orientedEdgeRing,
   mergeVerticesAtCenter,
   positionsFromSession,
   restorePositions,
@@ -328,6 +329,24 @@ export function createViewport(container: HTMLElement): Viewport {
     startTransform('grab');
   };
 
+  const factorForRingEdge = (
+    edgeId: number,
+    pointerPx: THREE.Vector2,
+    size: { width: number; height: number },
+  ): number => {
+    const ring = orientedEdgeRing(mesh, edgeId);
+    const seg = ring.find((e) => e.edgeId === edgeId) ?? ring[0];
+    if (!seg) return 0.5;
+    return edgeFactorAtPointer(
+      mesh,
+      seg.from,
+      seg.to,
+      camera,
+      pointerPx,
+      size,
+    );
+  };
+
   const updateLoopCutFromPointer = (clientX: number, clientY: number): void => {
     if (!loopCutSession) return;
     const rect = renderer.domElement.getBoundingClientRect();
@@ -338,12 +357,10 @@ export function createViewport(container: HTMLElement): Viewport {
     const size = { width: rect.width, height: rect.height };
     const edgeId = pickNearestEdge(mesh, camera, pointerPx, size);
     if (edgeId === null) {
-      // Mantém último anel válido; só atualiza fator se ainda houver edge
+      // Mantém último anel; atualiza fator pelo segmento orientado
       if (loopCutSession.edgeId !== null) {
-        loopCutSession.factor = edgeFactorAtPointer(
-          mesh,
+        loopCutSession.factor = factorForRingEdge(
           loopCutSession.edgeId,
-          camera,
           pointerPx,
           size,
         );
@@ -353,13 +370,7 @@ export function createViewport(container: HTMLElement): Viewport {
       return;
     }
     loopCutSession.edgeId = edgeId;
-    loopCutSession.factor = edgeFactorAtPointer(
-      mesh,
-      edgeId,
-      camera,
-      pointerPx,
-      size,
-    );
+    loopCutSession.factor = factorForRingEdge(edgeId, pointerPx, size);
     drawLoopCutPreview();
     refreshStatus();
   };

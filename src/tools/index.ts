@@ -17,7 +17,9 @@ export {
   loopCut,
   loopCutPreviewPositions,
   oppositeEdgeOnQuad,
+  orientedEdgeRing,
   type LoopCutResult,
+  type OrientedRingEdge,
 } from './loopCut';
 export { buildMeshFromFaces } from './meshBuild';
 export {

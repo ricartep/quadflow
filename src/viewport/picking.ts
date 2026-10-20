@@ -148,17 +148,21 @@ export function pickNearestEdge(
   return pickEdge(mesh, camera, pointer, size, thresholdPx);
 }
 
-/** Fator 0..1 ao longo da aresta sob o ponteiro (para deslizar o corte). */
+/**
+ * Fator de slide do Loop Cut (estilo Blender):
+ * projeta o ponteiro em from→to; perto de `from` → ~0, perto de `to` → ~1.
+ */
 export function edgeFactorAtPointer(
   mesh: Mesh,
-  edgeId: Id,
+  fromId: Id,
+  toId: Id,
   camera: THREE.Camera,
   pointer: THREE.Vector2,
   size: ScreenSize,
 ): number {
-  const [aId, bId] = edgeVertices(mesh, edgeId);
-  const a = mesh.vertices.get(aId)!;
-  const b = mesh.vertices.get(bId)!;
+  const a = mesh.vertices.get(fromId);
+  const b = mesh.vertices.get(toId);
+  if (!a || !b) return 0.5;
   const sa = projectToScreen(
     new THREE.Vector3(a.position.x, a.position.y, a.position.z),
     camera,

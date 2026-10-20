@@ -79,32 +79,94 @@ export function oppositeEdgeOnQuad(
  * Edge ring a partir de uma aresta (atravessa quads pelas arestas opostas).
  */
 export function findEdgeRing(mesh: Mesh, startEdgeId: Id): Id[] {
+  return orientedEdgeRing(mesh, startEdgeId).map((e) => e.edgeId);
+}
+
+export interface OrientedRingEdge {
+  edgeId: Id;
+  /** Lado “0” do corte (fator → 0 aproxima estes vértices). */
+  from: Id;
+  /** Lado “1” do corte (fator → 1 aproxima estes vértices). */
+  to: Id;
+}
+
+/**
+ * Em um quad, dados from→to numa aresta, devolve from→to da aresta oposta
+ * no mesmo lado do belt (estilo Blender).
+ */
+function oppositeOrientedOnQuad(
+  mesh: Mesh,
+  faceId: Id,
+  from: Id,
+  to: Id,
+): { edgeId: Id; from: Id; to: Id } | null {
+  const loop = faceVertices(mesh, faceId);
+  if (loop.length !== 4) return null;
+  const n = 4;
+  for (let i = 0; i < n; i += 1) {
+    const a = loop[i]!;
+    const b = loop[(i + 1) % n]!;
+    if (a === from && b === to) {
+      const oppFrom = loop[(i + 3) % n]!;
+      const oppTo = loop[(i + 2) % n]!;
+      const edgeId = findEdgeBetween(mesh, oppFrom, oppTo);
+      if (edgeId === null) return null;
+      return { edgeId, from: oppFrom, to: oppTo };
+    }
+    if (a === to && b === from) {
+      const oppFrom = loop[(i + 2) % n]!;
+      const oppTo = loop[(i + 3) % n]!;
+      const edgeId = findEdgeBetween(mesh, oppFrom, oppTo);
+      if (edgeId === null) return null;
+      return { edgeId, from: oppFrom, to: oppTo };
+    }
+  }
+  return null;
+}
+
+/**
+ * Ring com endpoints orientados: fator t move o loop inteiro do lado `from`
+ * para o lado `to` (aproxima os vértices do lado sob o mouse).
+ */
+export function orientedEdgeRing(
+  mesh: Mesh,
+  startEdgeId: Id,
+): OrientedRingEdge[] {
   if (!mesh.edges.has(startEdgeId)) return [];
 
+  const [startFrom, startTo] = edgeEndpoints(mesh, startEdgeId);
   const startFaces = edgeFaceIds(mesh, startEdgeId);
-  if (startFaces.length === 0) return [startEdgeId];
+  if (startFaces.length === 0) {
+    return [{ edgeId: startEdgeId, from: startFrom, to: startTo }];
+  }
 
-  const ring: Id[] = [];
-  let edge = startEdgeId;
+  const ring: OrientedRingEdge[] = [];
+  let edgeId = startEdgeId;
+  let from = startFrom;
+  let to = startTo;
   let face: Id | null = startFaces[0]!;
 
   for (let guard = 0; guard < mesh.edges.size + 2; guard += 1) {
-    ring.push(edge);
-    const opposite = oppositeEdgeOnQuad(mesh, face, edge);
-    if (opposite === null) break;
+    ring.push({ edgeId, from, to });
+    if (face === null) break;
 
-    if (opposite === startEdgeId) {
+    const opp = oppositeOrientedOnQuad(mesh, face, from, to);
+    if (opp === null) break;
+
+    if (opp.edgeId === startEdgeId) {
       return ring;
     }
 
-    const faces = edgeFaceIds(mesh, opposite);
+    const faces = edgeFaceIds(mesh, opp.edgeId);
     const nextFace = faces.find((f) => f !== face) ?? null;
     if (nextFace === null) {
-      ring.push(opposite);
+      ring.push(opp);
       break;
     }
 
-    edge = opposite;
+    edgeId = opp.edgeId;
+    from = opp.from;
+    to = opp.to;
     face = nextFace;
   }
 
@@ -168,19 +230,21 @@ export function loopCutPreviewPositions(
   factor = 0.5,
 ): Vec3[] | null {
   const t = clampFactor(factor);
-  const ring = findEdgeRing(mesh, edgeId);
+  const ring = orientedEdgeRing(mesh, edgeId);
   if (ring.length < 2) return null;
 
-  const points: Vec3[] = [];
-  for (const eId of ring) {
-    const [a, b] = edgeEndpoints(mesh, eId);
-    points.push(lerp(mesh.vertices.get(a)!.position, mesh.vertices.get(b)!.position, t));
-  }
-  return points;
+  return ring.map((seg) =>
+    lerp(
+      mesh.vertices.get(seg.from)!.position,
+      mesh.vertices.get(seg.to)!.position,
+      t,
+    ),
+  );
 }
 
 /**
  * Insere um edge loop cortando o ring da aresta (`factor` 0..1, padrão 0.5).
+ * t→0 aproxima o lado `from`; t→1 aproxima o lado `to`.
  */
 export function loopCut(
   mesh: Mesh,
@@ -188,24 +252,24 @@ export function loopCut(
   factor = 0.5,
 ): LoopCutResult | null {
   const t = clampFactor(factor);
-  const ring = findEdgeRing(mesh, edgeId);
+  const ring = orientedEdgeRing(mesh, edgeId);
   if (ring.length < 2) return null;
 
-  const ringSet = new Set(ring);
+  const ringEdgeIds = ring.map((e) => e.edgeId);
+  const ringSet = new Set(ringEdgeIds);
   const positions = copyPositions(mesh);
   const wires = extractWires(mesh);
   const newVertexIds: Id[] = [];
   const edgeToMid = new Map<Id, Id>();
   let nextId = nextVertexId(positions);
 
-  for (const eId of ring) {
-    const [a, b] = edgeEndpoints(mesh, eId);
+  for (const seg of ring) {
     const midId = nextId++;
     positions.set(
       midId,
-      lerp(positions.get(a)!, positions.get(b)!, t),
+      lerp(positions.get(seg.from)!, positions.get(seg.to)!, t),
     );
-    edgeToMid.set(eId, midId);
+    edgeToMid.set(seg.edgeId, midId);
     newVertexIds.push(midId);
   }
 
@@ -223,6 +287,6 @@ export function loopCut(
   return {
     mesh: buildMeshFromFaces(positions, faces, wires),
     newVertexIds,
-    ringEdgeIds: ring,
+    ringEdgeIds,
   };
 }
