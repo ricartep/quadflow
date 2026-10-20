@@ -6,7 +6,9 @@ export {
   mergeVerticesAtCenter,
 } from './edit';
 export {
+  extrudeEdges,
   extrudeFaces,
+  extrudeVertices,
   faceNormal,
   type ExtrudeResult,
 } from './extrude';

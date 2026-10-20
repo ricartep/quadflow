@@ -15,7 +15,9 @@ import {
   deleteFaces,
   deleteVertices,
   dissolveEdges,
+  extrudeEdges,
   extrudeFaces,
+  extrudeVertices,
   formatTransformStatus,
   mergeVerticesAtCenter,
   positionsFromSession,
@@ -166,25 +168,26 @@ export function createViewport(container: HTMLElement): Viewport {
 
   const runExtrude = (): void => {
     if (selection.appMode !== 'edit') return;
-    if (selection.domain !== 'face' || selection.faces.size === 0) return;
 
-    extrudeRestore = cloneMesh(mesh);
-    const { mesh: next, newVertexIds } = extrudeFaces(
-      mesh,
-      [...selection.faces],
-      0,
-    );
-    if (newVertexIds.length === 0) {
-      extrudeRestore = null;
-      return;
+    let result: { mesh: typeof mesh; newVertexIds: number[] } | null = null;
+
+    if (selection.domain === 'face' && selection.faces.size > 0) {
+      result = extrudeFaces(mesh, [...selection.faces], 0);
+    } else if (selection.domain === 'edge' && selection.edges.size > 0) {
+      result = extrudeEdges(mesh, [...selection.edges], 0);
+    } else if (selection.domain === 'vertex' && selection.vertices.size > 0) {
+      result = extrudeVertices(mesh, [...selection.vertices], 0);
     }
 
-    mesh = next;
+    if (!result || result.newVertexIds.length === 0) return;
+
+    extrudeRestore = cloneMesh(mesh);
+    mesh = result.mesh;
     meshView.updateMesh(mesh);
     selection = {
       appMode: 'edit',
       domain: 'vertex',
-      vertices: new Set(newVertexIds),
+      vertices: new Set(result.newVertexIds),
       edges: new Set(),
       faces: new Set(),
     };

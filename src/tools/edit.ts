@@ -62,6 +62,7 @@ function edgeFacePair(mesh: Mesh, edgeId: Id): [Id, Id] | null {
   if (!he || he.twin === null) return null;
   const twin = mesh.halfEdges.get(he.twin);
   if (!twin) return null;
+  if (he.face === null || twin.face === null) return null;
   if (he.face === twin.face) return null;
   return [he.face, twin.face];
 }

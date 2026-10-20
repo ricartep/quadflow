@@ -42,7 +42,7 @@ export function faceEdges(mesh: Mesh, faceId: Id): Id[] {
   return result;
 }
 
-/** Faces adjacentes à aresta (1 se borda, 2 se interna). */
+/** Faces adjacentes à aresta (0 se wire, 1 se borda, 2 se interna). */
 export function edgeFaces(mesh: Mesh, edgeId: Id): Id[] {
   const edge = mesh.edges.get(edgeId);
   if (!edge) {
@@ -52,14 +52,16 @@ export function edgeFaces(mesh: Mesh, edgeId: Id): Id[] {
   if (!he) {
     throw new Error(`Half-edge da aresta ${edgeId} ausente`);
   }
-  if (he.twin === null) {
-    return [he.face];
+  const faces: Id[] = [];
+  if (he.face !== null) faces.push(he.face);
+  if (he.twin !== null) {
+    const twin = mesh.halfEdges.get(he.twin);
+    if (!twin) {
+      throw new Error(`Twin da aresta ${edgeId} ausente`);
+    }
+    if (twin.face !== null) faces.push(twin.face);
   }
-  const twin = mesh.halfEdges.get(he.twin);
-  if (!twin) {
-    throw new Error(`Twin da aresta ${edgeId} ausente`);
-  }
-  return [he.face, twin.face];
+  return faces;
 }
 
 export function faceVertexSet(mesh: Mesh, faceId: Id): Set<Id> {

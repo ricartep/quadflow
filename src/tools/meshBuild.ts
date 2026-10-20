@@ -1,4 +1,4 @@
-import type { Face, HalfEdge, Id, Mesh, Vec3, Vertex } from '../core';
+import { faceVertices, type Face, type HalfEdge, type Id, type Mesh, type Vec3, type Vertex } from '../core';
 
 interface MeshBuilder extends Mesh {
   nextVertexId: number;
@@ -89,10 +89,48 @@ function addFace(builder: MeshBuilder, vertexIds: Id[]): Id {
   return faceId;
 }
 
+/** Aresta solta (wire): dois half-edges gêmeos sem face. */
+function addWireEdge(builder: MeshBuilder, a: Id, b: Id): void {
+  if (a === b) return;
+  if (!builder.vertices.has(a) || !builder.vertices.has(b)) {
+    throw new Error(`Wire referencia vértice inexistente (${a}, ${b})`);
+  }
+
+  const heA = builder.nextHalfEdgeId++;
+  const heB = builder.nextHalfEdgeId++;
+  const edgeId = builder.nextEdgeId++;
+
+  builder.halfEdges.set(heA, {
+    id: heA,
+    vertex: b,
+    twin: heB,
+    next: heB,
+    prev: heB,
+    face: null,
+    edge: edgeId,
+  });
+  builder.halfEdges.set(heB, {
+    id: heB,
+    vertex: a,
+    twin: heA,
+    next: heA,
+    prev: heA,
+    face: null,
+    edge: edgeId,
+  });
+  builder.edges.set(edgeId, { id: edgeId, halfEdge: heA });
+
+  const va = builder.vertices.get(a)!;
+  const vb = builder.vertices.get(b)!;
+  if (va.halfEdge === null) va.halfEdge = heA;
+  if (vb.halfEdge === null) vb.halfEdge = heB;
+}
+
 function linkTwinsAndEdges(builder: MeshBuilder): void {
   const unpaired = new Map<string, Id>();
 
   for (const he of builder.halfEdges.values()) {
+    if (he.face === null) continue; // wires já pareados
     const origin = originOf(builder, he.id);
     const key = edgeKey(origin, he.vertex);
     const otherId = unpaired.get(key);
@@ -113,7 +151,6 @@ function linkTwinsAndEdges(builder: MeshBuilder): void {
     unpaired.delete(key);
   }
 
-  // Bordas (malha aberta): half-edge sem twin, mas com edge própria.
   for (const heId of unpaired.values()) {
     const he = builder.halfEdges.get(heId)!;
     const edgeId = builder.nextEdgeId++;
@@ -124,16 +161,20 @@ function linkTwinsAndEdges(builder: MeshBuilder): void {
 }
 
 /**
- * Reconstrói malha half-edge a partir de posições (por id) e loops de face.
- * Vértices não referenciados por nenhuma face são omitidos.
+ * Reconstrói malha half-edge a partir de faces e arestas soltas (wires).
  */
 export function buildMeshFromFaces(
   positions: ReadonlyMap<Id, Vec3>,
   faces: readonly Id[][],
+  wires: readonly [Id, Id][] = [],
 ): Mesh {
   const used = new Set<Id>();
   for (const loop of faces) {
     for (const id of loop) used.add(id);
+  }
+  for (const [a, b] of wires) {
+    used.add(a);
+    used.add(b);
   }
 
   const builder = createBuilder();
@@ -150,6 +191,21 @@ export function buildMeshFromFaces(
   }
 
   linkTwinsAndEdges(builder);
+
+  const existingKeys = new Set<string>();
+  for (const he of builder.halfEdges.values()) {
+    if (he.face === null) continue;
+    const origin = originOf(builder, he.id);
+    existingKeys.add(edgeKey(origin, he.vertex));
+  }
+
+  for (const [a, b] of wires) {
+    const key = edgeKey(a, b);
+    if (existingKeys.has(key)) continue;
+    addWireEdge(builder, a, b);
+    existingKeys.add(key);
+  }
+
   return {
     vertices: builder.vertices,
     halfEdges: builder.halfEdges,
@@ -164,4 +220,39 @@ export function nextVertexId(positions: ReadonlyMap<Id, Vec3>): Id {
     if (id > max) max = id;
   }
   return max + 1;
+}
+
+/** Extrai arestas wire (face null) da malha. */
+export function extractWires(mesh: Mesh): [Id, Id][] {
+  const wires: [Id, Id][] = [];
+  const seen = new Set<number>();
+  for (const he of mesh.halfEdges.values()) {
+    if (he.face !== null || he.twin === null) continue;
+    if (seen.has(he.id) || seen.has(he.twin)) continue;
+    seen.add(he.id);
+    seen.add(he.twin);
+    const twin = mesh.halfEdges.get(he.twin)!;
+    wires.push([twin.vertex, he.vertex]);
+  }
+  return wires;
+}
+
+export function copyPositions(mesh: Mesh): Map<Id, Vec3> {
+  const positions = new Map<Id, Vec3>();
+  for (const [id, vertex] of mesh.vertices) {
+    positions.set(id, {
+      x: vertex.position.x,
+      y: vertex.position.y,
+      z: vertex.position.z,
+    });
+  }
+  return positions;
+}
+
+export function extractFaceLoops(mesh: Mesh): Id[][] {
+  const loops: Id[][] = [];
+  for (const face of mesh.faces.values()) {
+    loops.push(faceVertices(mesh, face.id));
+  }
+  return loops;
 }

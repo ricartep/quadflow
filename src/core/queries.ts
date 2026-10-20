@@ -49,11 +49,14 @@ export function neighborVertices(mesh: Mesh, vertexId: Id): Id[] {
   );
 }
 
-/** Faces incidentes ao vértice. */
+/** Faces incidentes ao vértice (ignora half-edges wire sem face). */
 export function neighborFaces(mesh: Mesh, vertexId: Id): Id[] {
-  return outgoingHalfEdges(mesh, vertexId).map(
-    (heId) => requireHalfEdge(mesh, heId).face,
-  );
+  const faces: Id[] = [];
+  for (const heId of outgoingHalfEdges(mesh, vertexId)) {
+    const face = requireHalfEdge(mesh, heId).face;
+    if (face !== null) faces.push(face);
+  }
+  return faces;
 }
 
 /** Arestas incidentes ao vértice. */

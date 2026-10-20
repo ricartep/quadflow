@@ -20,7 +20,8 @@ export interface HalfEdge {
   twin: Id | null;
   next: Id;
   prev: Id;
-  face: Id;
+  /** Face dona; `null` = aresta solta (wire), ex. extrude de vértice. */
+  face: Id | null;
   edge: Id | null;
 }
 

@@ -19,7 +19,7 @@ export function validateMesh(mesh: Mesh): MeshIssue[] {
         elementId: he.id,
       });
     }
-    if (!mesh.faces.has(he.face)) {
+    if (he.face !== null && !mesh.faces.has(he.face)) {
       issues.push({
         code: 'he.face',
         message: `Half-edge ${he.id} aponta para face inexistente`,
