@@ -159,8 +159,8 @@ function rotatePoint(
   const y = point.y - pivot.y;
   const z = point.z - pivot.z;
 
-  // Sem eixo: rotação em torno de Y (vista “padrão”).
-  const useAxis = axis === 'none' ? 'y' : axis;
+  // Sem eixo: rotação em torno de Z (cima), padrão Blender.
+  const useAxis = axis === 'none' ? 'z' : axis;
 
   if (useAxis === 'x') {
     return {

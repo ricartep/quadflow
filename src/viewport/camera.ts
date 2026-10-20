@@ -1,5 +1,18 @@
 import * as THREE from 'three';
 
+/**
+ * Offset orbital com Z para cima (padrão Blender).
+ * phi = ângulo polar a partir de +Z; theta = azimute no plano XY.
+ */
+function offsetFromSphericalZUp(spherical: THREE.Spherical): THREE.Vector3 {
+  const sinPhi = Math.sin(spherical.phi);
+  return new THREE.Vector3(
+    spherical.radius * sinPhi * Math.cos(spherical.theta),
+    spherical.radius * sinPhi * Math.sin(spherical.theta),
+    spherical.radius * Math.cos(spherical.phi),
+  );
+}
+
 /** Controles orbitais estilo Blender: MMB orbita, Shift+MMB pan, scroll zoom. */
 export class BlenderOrbitControls {
   readonly camera: THREE.PerspectiveCamera;
@@ -24,6 +37,7 @@ export class BlenderOrbitControls {
 
   constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement) {
     this.camera = camera;
+    this.camera.up.set(0, 0, 1);
     this.domElement = domElement;
     this.bindEvents();
     this.update();
@@ -45,8 +59,9 @@ export class BlenderOrbitControls {
 
     this.target.add(this.panOffset);
 
-    const offset = new THREE.Vector3().setFromSpherical(this.spherical);
+    const offset = offsetFromSphericalZUp(this.spherical);
     this.camera.position.copy(this.target).add(offset);
+    this.camera.up.set(0, 0, 1);
     this.camera.lookAt(this.target);
 
     this.sphericalDelta.set(0, 0, 0);
@@ -134,9 +149,8 @@ export class BlenderOrbitControls {
   }
 }
 
-export function createCamera(
-  aspect: number,
-): THREE.PerspectiveCamera {
+export function createCamera(aspect: number): THREE.PerspectiveCamera {
   const camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
+  camera.up.set(0, 0, 1);
   return camera;
 }
