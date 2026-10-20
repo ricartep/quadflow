@@ -6,6 +6,7 @@ export interface LegendContext {
   domain: LegendDomain;
   transforming: boolean;
   loopCutting?: boolean;
+  beveling?: boolean;
 }
 
 export interface ShortcutLegend {
@@ -37,8 +38,24 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
       title: 'Loop Cut (Ctrl+R)',
       rows: [
         { keys: 'Mover', desc: 'Escolhe o anel e a posição do corte' },
+        { keys: 'Scroll', desc: 'Quantidade de cortes' },
+        { keys: 'Shift', desc: 'Trava no centro da aresta' },
         { keys: 'LMB / Enter', desc: 'Confirma o corte' },
         { keys: 'Esc / RMB', desc: 'Cancela' },
+      ],
+    };
+  }
+
+  if (ctx.beveling) {
+    return {
+      title: 'Bevel (Ctrl+B)',
+      rows: [
+        { keys: '←→', desc: 'Width (largura)' },
+        { keys: '↑↓', desc: 'Profile (−1 dentro · 0 · +1 fora)' },
+        { keys: 'Scroll', desc: 'Segments' },
+        { keys: 'Painel', desc: 'Width / Segments / Profile' },
+        { keys: 'LMB / Enter', desc: 'Confirma' },
+        { keys: 'Esc / Ctrl+Z', desc: 'Cancela' },
       ],
     };
   }
@@ -96,7 +113,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
       rows: [
         ...shared,
         { keys: 'E', desc: 'Extrude — cria uma face (quad)' },
-        { keys: 'Ctrl+B', desc: 'Bevel — chanfro nas arestas' },
+        { keys: 'Ctrl+B', desc: 'Bevel — mouse=largura · scroll=segmentos' },
         { keys: 'X', desc: 'Dissolve (fundir faces)' },
         { keys: 'M', desc: 'Merge dos extremos' },
         { keys: 'Clique', desc: 'Selecionar · Shift acumula' },

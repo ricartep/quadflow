@@ -15,9 +15,13 @@ export {
 } from './edit';
 export {
   addPrimitive,
+  defaultPrimitiveParams,
+  primitiveParamFields,
   PRIMITIVE_MENU,
   type AddPrimitiveResult,
   type PrimitiveKind,
+  type PrimitiveParamField,
+  type PrimitiveParams,
 } from './primitives';
 export {
   extrudeEdges,
@@ -33,6 +37,7 @@ export {
 export {
   findEdgeRing,
   loopCut,
+  loopCutFactors,
   loopCutPreviewPositions,
   oppositeEdgeOnQuad,
   orientedEdgeRing,

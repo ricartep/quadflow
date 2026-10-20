@@ -48,7 +48,8 @@ import {
   type ShortcutLegend,
   type StatusBar,
 } from '../ui';
-import type { PrimitiveKind } from '../tools';
+import { createBevelPanel, type BevelPanel } from '../ui/bevelPanel';
+import type { PrimitiveKind, PrimitiveParams } from '../tools';
 import '../ui/legend.css';
 import '../ui/status.css';
 import { BlenderOrbitControls, createCamera } from './camera';
@@ -184,8 +185,49 @@ export function createViewport(container: HTMLElement): Viewport {
   type LoopCutSession = {
     edgeId: number | null;
     factor: number;
+    cuts: number;
   };
   let loopCutSession: LoopCutSession | null = null;
+
+  type BevelSession = {
+    edgeIds: number[];
+    amount: number;
+    segments: number;
+    profile: number;
+    startX: number | null;
+    startY: number | null;
+  };
+  let bevelSession: BevelSession | null = null;
+  let bevelBaseMesh: Mesh | null = null;
+
+  const syncBevelPanel = (): void => {
+    if (!bevelSession) {
+      bevelPanel.close();
+      return;
+    }
+    const values = {
+      amount: bevelSession.amount,
+      segments: bevelSession.segments,
+      profile: bevelSession.profile,
+    };
+    if (bevelPanel.isOpen()) {
+      bevelPanel.update(values);
+    } else {
+      bevelPanel.open(values);
+    }
+  };
+
+  // Declarado cedo; createBevelPanel usa applyBevelPreview via closure (após init).
+  let applyBevelPreviewRef: (() => void) | null = null;
+
+  const bevelPanel: BevelPanel = createBevelPanel(container, (values) => {
+    if (!bevelSession) return;
+    bevelSession.amount = values.amount;
+    bevelSession.segments = values.segments;
+    bevelSession.profile = values.profile;
+    applyBevelPreviewRef?.();
+    refreshStatus();
+  });
 
   const previewGeom = new THREE.BufferGeometry();
   const previewMat = new THREE.LineBasicMaterial({
@@ -193,7 +235,7 @@ export function createViewport(container: HTMLElement): Viewport {
     depthTest: false,
     depthWrite: false,
   });
-  const previewLine = new THREE.LineLoop(previewGeom, previewMat);
+  const previewLine = new THREE.LineSegments(previewGeom, previewMat);
   previewLine.visible = false;
   previewLine.renderOrder = 10;
   scene.add(previewLine);
@@ -211,22 +253,28 @@ export function createViewport(container: HTMLElement): Viewport {
       clearLoopCutPreview();
       return;
     }
-    const points = loopCutPreviewPositions(
+    const loops = loopCutPreviewPositions(
       mesh,
       loopCutSession.edgeId,
       loopCutSession.factor,
+      loopCutSession.cuts,
     );
-    if (!points || points.length < 2) {
+    if (!loops || loops.length === 0 || loops[0]!.length < 2) {
       clearLoopCutPreview();
       return;
     }
-    const arr = new Float32Array(points.length * 3);
-    for (let i = 0; i < points.length; i += 1) {
-      arr[i * 3] = points[i]!.x;
-      arr[i * 3 + 1] = points[i]!.y;
-      arr[i * 3 + 2] = points[i]!.z;
+    const coords: number[] = [];
+    for (const points of loops) {
+      for (let i = 0; i < points.length; i += 1) {
+        const a = points[i]!;
+        const b = points[(i + 1) % points.length]!;
+        coords.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
     }
-    previewGeom.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    previewGeom.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(coords), 3),
+    );
     previewGeom.computeBoundingSphere();
     previewLine.visible = true;
   };
@@ -237,9 +285,18 @@ export function createViewport(container: HTMLElement): Viewport {
       domain: selection.domain,
       transforming: transform !== null,
       loopCutting: loopCutSession !== null,
+      beveling: bevelSession !== null,
     });
     if (transform) {
       status.update(formatTransformStatus(transform));
+      return;
+    }
+    if (bevelSession) {
+      const pct = Math.round(bevelSession.amount * 100);
+      const prof = bevelSession.profile.toFixed(2);
+      status.update(
+        `Bevel · width ${pct}% · ${bevelSession.segments} seg · profile ${prof} · scroll=seg · Ctrl+Z/Esc cancela · LMB confirma`,
+      );
       return;
     }
     if (loopCutSession) {
@@ -247,7 +304,7 @@ export function createViewport(container: HTMLElement): Viewport {
       status.update(
         loopCutSession.edgeId === null
           ? 'Loop Cut · passe o mouse sobre uma aresta'
-          : `Loop Cut · fator ${pct}% · LMB confirma · Esc cancela`,
+          : `Loop Cut · ${loopCutSession.cuts} corte(s) · fator ${pct}% · scroll=cortes · Shift=centro · LMB confirma`,
       );
       return;
     }
@@ -358,6 +415,7 @@ export function createViewport(container: HTMLElement): Viewport {
 
   const startTransform = (kind: 'grab' | 'rotate' | 'scale'): void => {
     if (!hasActiveObject(sceneState)) return;
+    if (bevelSession) cancelBevel();
     if (selection.appMode === 'object') {
       const ids = [...mesh.vertices.keys()];
       const session = beginTransform(mesh, ids, kind);
@@ -397,14 +455,25 @@ export function createViewport(container: HTMLElement): Viewport {
     startTransform('grab');
   };
 
-  const spawnPrimitive = (kind: PrimitiveKind): void => {
+  const spawnPrimitive = (
+    kind: PrimitiveKind,
+    params: PrimitiveParams,
+  ): void => {
     if (loopCutSession) cancelLoopCut();
+    if (bevelSession) {
+      bevelSession = null;
+      bevelPanel.close();
+      if (bevelBaseMesh) {
+        mesh = cloneMesh(bevelBaseMesh);
+        bevelBaseMesh = null;
+      }
+    }
     if (transform) cancelTransform();
 
     if (hasActiveObject(sceneState)) {
       writeActiveMesh(sceneState, mesh);
     }
-    const built = addPrimitive(createEmptyMesh(), kind, 1);
+    const built = addPrimitive(createEmptyMesh(), kind, params);
     addSceneObject(sceneState, built.mesh, kind);
     commitSceneHistory(sceneHistory, sceneState);
     sceneState = sceneHistory.present;
@@ -421,8 +490,8 @@ export function createViewport(container: HTMLElement): Viewport {
     startTransform('grab');
   };
 
-  const addMenu: AddMenu = createAddMenu(container, (kind) => {
-    spawnPrimitive(kind);
+  const addMenu: AddMenu = createAddMenu(container, (kind, params) => {
+    spawnPrimitive(kind, params);
   });
 
   const runAddPrimitive = (): void => {
@@ -528,6 +597,7 @@ export function createViewport(container: HTMLElement): Viewport {
       mesh,
       loopCutSession.edgeId,
       loopCutSession.factor,
+      loopCutSession.cuts,
     );
     loopCutSession = null;
     clearLoopCutPreview();
@@ -568,7 +638,11 @@ export function createViewport(container: HTMLElement): Viewport {
     );
   };
 
-  const updateLoopCutFromPointer = (clientX: number, clientY: number): void => {
+  const updateLoopCutFromPointer = (
+    clientX: number,
+    clientY: number,
+    shiftKey = false,
+  ): void => {
     if (!loopCutSession) return;
     const rect = renderer.domElement.getBoundingClientRect();
     const pointerPx = new THREE.Vector2(
@@ -580,18 +654,18 @@ export function createViewport(container: HTMLElement): Viewport {
     if (edgeId === null) {
       // Mantém último anel; atualiza fator pelo segmento orientado
       if (loopCutSession.edgeId !== null) {
-        loopCutSession.factor = factorForRingEdge(
-          loopCutSession.edgeId,
-          pointerPx,
-          size,
-        );
+        loopCutSession.factor = shiftKey
+          ? 0.5
+          : factorForRingEdge(loopCutSession.edgeId, pointerPx, size);
         drawLoopCutPreview();
         refreshStatus();
       }
       return;
     }
     loopCutSession.edgeId = edgeId;
-    loopCutSession.factor = factorForRingEdge(edgeId, pointerPx, size);
+    loopCutSession.factor = shiftKey
+      ? 0.5
+      : factorForRingEdge(edgeId, pointerPx, size);
     drawLoopCutPreview();
     refreshStatus();
   };
@@ -599,6 +673,7 @@ export function createViewport(container: HTMLElement): Viewport {
   const startLoopCut = (): void => {
     if (selection.appMode !== 'edit') return;
     if (transform) cancelTransform();
+    if (bevelSession) cancelBevel();
 
     const initialEdge =
       selection.domain === 'edge' && selection.edges.size > 0
@@ -608,6 +683,7 @@ export function createViewport(container: HTMLElement): Viewport {
     loopCutSession = {
       edgeId: initialEdge,
       factor: 0.5,
+      cuts: 1,
     };
     if (initialEdge !== null) {
       drawLoopCutPreview();
@@ -623,14 +699,16 @@ export function createViewport(container: HTMLElement): Viewport {
     commitMeshChange(mergeVerticesAtCenter(mesh, ids));
   };
 
-  const runBevel = (): void => {
-    if (selection.appMode !== 'edit') return;
-    if (selection.domain !== 'edge' || selection.edges.size === 0) return;
-
-    const result = bevelEdges(mesh, [...selection.edges], 0.25);
-    if (!result || result.newVertexIds.length === 0) return;
-
-    pendingRestore = cloneMesh(mesh);
+  const applyBevelPreview = (): void => {
+    if (!bevelSession || !bevelBaseMesh) return;
+    const result = bevelEdges(
+      bevelBaseMesh,
+      bevelSession.edgeIds,
+      bevelSession.amount,
+      bevelSession.segments,
+      bevelSession.profile,
+    );
+    if (!result) return;
     mesh = result.mesh;
     syncActiveView();
     selection = {
@@ -641,7 +719,58 @@ export function createViewport(container: HTMLElement): Viewport {
       faces: new Set(),
     };
     applySelection();
-    startTransform('grab');
+  };
+  applyBevelPreviewRef = applyBevelPreview;
+
+  const cancelBevel = (): void => {
+    if (!bevelSession) return;
+    bevelSession = null;
+    bevelPanel.close();
+    if (bevelBaseMesh) {
+      mesh = cloneMesh(bevelBaseMesh);
+      bevelBaseMesh = null;
+      syncActiveView();
+    }
+    selection = clearSelection(selection);
+    applySelection();
+    refreshStatus();
+  };
+
+  const confirmBevel = (): void => {
+    if (!bevelSession || !bevelBaseMesh) return;
+    applyBevelPreview();
+    bevelSession = null;
+    bevelBaseMesh = null;
+    bevelPanel.close();
+    pendingRestore = null;
+    commitScene();
+    rebuildViews();
+    applySelection();
+    refreshStatus();
+  };
+
+  const startBevel = (): void => {
+    if (selection.appMode !== 'edit') return;
+    if (selection.domain !== 'edge' || selection.edges.size === 0) return;
+    if (transform) cancelTransform();
+    if (loopCutSession) cancelLoopCut();
+
+    const edgeIds = [...selection.edges];
+    const probe = bevelEdges(mesh, edgeIds, 0.25, 1, 0);
+    if (!probe) return;
+
+    bevelBaseMesh = cloneMesh(mesh);
+    bevelSession = {
+      edgeIds,
+      amount: 0.25,
+      segments: 1,
+      profile: 0,
+      startX: null,
+      startY: null,
+    };
+    applyBevelPreview();
+    syncBevelPanel();
+    refreshStatus();
   };
 
   const runDelete = (): void => {
@@ -650,6 +779,7 @@ export function createViewport(container: HTMLElement): Viewport {
       if (ids.length === 0) return;
       if (transform) cancelTransform();
       if (loopCutSession) cancelLoopCut();
+      if (bevelSession) cancelBevel();
       // Não gravar malha de objetos que serão apagados
       if (hasActiveObject(sceneState) && !ids.includes(sceneState.activeId)) {
         writeActiveMesh(sceneState, mesh);
@@ -697,6 +827,19 @@ export function createViewport(container: HTMLElement): Viewport {
       }
     }
 
+    if (bevelSession) {
+      if (event.code === 'Escape' || event.code === 'Tab') {
+        blockBrowserShortcut(event);
+        cancelBevel();
+        return;
+      }
+      if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+        blockBrowserShortcut(event);
+        confirmBevel();
+        return;
+      }
+    }
+
     if (loopCutSession) {
       if (event.code === 'Escape' || event.code === 'Tab') {
         blockBrowserShortcut(event);
@@ -710,7 +853,8 @@ export function createViewport(container: HTMLElement): Viewport {
       }
     }
 
-    const modalActive = transform !== null || loopCutSession !== null;
+    const modalActive =
+      transform !== null || loopCutSession !== null || bevelSession !== null;
 
     if (transform !== null) {
       const numeric = matchNumericInput(event);
@@ -797,7 +941,7 @@ export function createViewport(container: HTMLElement): Viewport {
         runInset();
         break;
       case 'bevel':
-        runBevel();
+        startBevel();
         break;
       case 'merge':
         runMerge();
@@ -824,11 +968,25 @@ export function createViewport(container: HTMLElement): Viewport {
         confirmTransform();
         break;
       case 'undo': {
+        // Em modal ativo, Ctrl+Z cancela a operação (como Esc) — não consome histórico
+        if (bevelSession) {
+          cancelBevel();
+          break;
+        }
+        if (loopCutSession) {
+          cancelLoopCut();
+          break;
+        }
+        if (transform) {
+          cancelTransform();
+          break;
+        }
         const previous = undoSceneHistory(sceneHistory);
         if (previous) applyHistoryScene(previous);
         break;
       }
       case 'redo': {
+        if (transform || loopCutSession || bevelSession) break;
         const next = redoSceneHistory(sceneHistory);
         if (next) applyHistoryScene(next);
         break;
@@ -982,11 +1140,47 @@ export function createViewport(container: HTMLElement): Viewport {
     applySelection();
   };
 
+  const updateBevelFromPointer = (clientX: number, clientY: number): void => {
+    if (!bevelSession) return;
+    if (bevelSession.startX === null || bevelSession.startY === null) {
+      bevelSession.startX = clientX;
+      bevelSession.startY = clientY;
+      return;
+    }
+    const dx = clientX - bevelSession.startX;
+    const dy = clientY - bevelSession.startY;
+    const nextAmount = Math.min(0.45, Math.max(0.05, 0.25 + dx / 220));
+    const nextProfile = Math.min(1, Math.max(-1, 0 - dy / 280));
+    const amountChanged = Math.abs(nextAmount - bevelSession.amount) >= 0.002;
+    const profileChanged = Math.abs(nextProfile - bevelSession.profile) >= 0.01;
+    if (!amountChanged && !profileChanged) return;
+    bevelSession.amount = nextAmount;
+    bevelSession.profile = nextProfile;
+    applyBevelPreview();
+    syncBevelPanel();
+    refreshStatus();
+  };
+
   const onPointerDown = (event: PointerEvent): void => {
+    if (bevelSession) {
+      if (event.button === 0) {
+        event.preventDefault();
+        confirmBevel();
+      } else if (event.button === 2) {
+        event.preventDefault();
+        cancelBevel();
+      }
+      return;
+    }
+
     if (loopCutSession) {
       if (event.button === 0) {
         event.preventDefault();
-        updateLoopCutFromPointer(event.clientX, event.clientY);
+        updateLoopCutFromPointer(
+          event.clientX,
+          event.clientY,
+          event.shiftKey,
+        );
         confirmLoopCut();
       } else if (event.button === 2) {
         event.preventDefault();
@@ -1019,8 +1213,17 @@ export function createViewport(container: HTMLElement): Viewport {
   };
 
   const onPointerMoveSelect = (event: PointerEvent): void => {
+    if (bevelSession) {
+      updateBevelFromPointer(event.clientX, event.clientY);
+      return;
+    }
+
     if (loopCutSession) {
-      updateLoopCutFromPointer(event.clientX, event.clientY);
+      updateLoopCutFromPointer(
+        event.clientX,
+        event.clientY,
+        event.shiftKey,
+      );
       return;
     }
 
@@ -1075,11 +1278,38 @@ export function createViewport(container: HTMLElement): Viewport {
   };
 
   const onContextMenu = (event: Event): void => {
-    if (transform || loopCutSession) event.preventDefault();
+    if (transform || loopCutSession || bevelSession) event.preventDefault();
+  };
+
+  const onWheelModal = (event: WheelEvent): void => {
+    if (bevelSession) {
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? 1 : -1;
+      const next = Math.min(12, Math.max(1, bevelSession.segments + delta));
+      if (next === bevelSession.segments) return;
+      bevelSession.segments = next;
+      applyBevelPreview();
+      syncBevelPanel();
+      refreshStatus();
+      return;
+    }
+    if (loopCutSession) {
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? 1 : -1;
+      const next = Math.min(12, Math.max(1, loopCutSession.cuts + delta));
+      if (next === loopCutSession.cuts) return;
+      loopCutSession.cuts = next;
+      drawLoopCutPreview();
+      refreshStatus();
+    }
   };
 
   // Captura origem do modal no primeiro movimento após G/R/S
   const onPointerMoveArm = (event: PointerEvent): void => {
+    if (bevelSession) {
+      onPointerMoveSelect(event);
+      return;
+    }
     if (loopCutSession) {
       onPointerMoveSelect(event);
       return;
@@ -1108,6 +1338,9 @@ export function createViewport(container: HTMLElement): Viewport {
   renderer.domElement.addEventListener('pointercancel', onPointerUp);
   window.addEventListener('pointermove', onPointerMoveArm);
   renderer.domElement.addEventListener('contextmenu', onContextMenu);
+  renderer.domElement.addEventListener('wheel', onWheelModal, {
+    passive: false,
+  });
 
   let frameId = 0;
 
@@ -1149,8 +1382,11 @@ export function createViewport(container: HTMLElement): Viewport {
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
       renderer.domElement.removeEventListener('pointercancel', onPointerUp);
       renderer.domElement.removeEventListener('contextmenu', onContextMenu);
+      renderer.domElement.removeEventListener('wheel', onWheelModal);
       hideMarquee();
       loopCutSession = null;
+      bevelSession = null;
+      bevelBaseMesh = null;
       clearLoopCutPreview();
       previewGeom.dispose();
       previewMat.dispose();
@@ -1159,6 +1395,7 @@ export function createViewport(container: HTMLElement): Viewport {
       unbindImmersive();
       immersiveBtn.dispose();
       addMenu.dispose();
+      bevelPanel.dispose();
       outliner.dispose();
       status.dispose();
       legend.dispose();

@@ -53,3 +53,71 @@
   font-size: 0.65rem;
   color: #666;
 }
+
+.qf-add-menu__field {
+  display: grid;
+  grid-template-columns: 1fr 4.5rem;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.28rem 0.85rem;
+}
+
+.qf-add-menu__field-label {
+  font-size: 0.75rem;
+  color: #b8b8b8;
+}
+
+.qf-add-menu__input {
+  width: 100%;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #555;
+  border-radius: 2px;
+  background: #1a1a1a;
+  color: #eee;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.qf-add-menu__input:focus {
+  outline: 1px solid #ff7a00;
+  border-color: #ff7a00;
+}
+
+.qf-add-menu__actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  padding: 0.45rem 0.85rem 0.15rem;
+}
+
+.qf-add-menu__btn {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #555;
+  border-radius: 2px;
+  background: #2a2a2a;
+  color: #ddd;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.qf-add-menu__btn:hover {
+  border-color: #888;
+}
+
+.qf-add-menu__btn--primary {
+  border-color: #ff7a00;
+  color: #ffb070;
+}
+
+.qf-add-menu__btn--primary:hover {
+  background: rgba(255, 122, 0, 0.15);
+}
+
+.qf-bevel-panel {
+  left: 1rem;
+  top: auto;
+  bottom: 3.5rem;
+  transform: none;
+  min-width: 13rem;
+}

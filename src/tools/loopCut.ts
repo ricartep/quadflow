@@ -181,37 +181,76 @@ function lerp(a: Vec3, b: Vec3, t: number): Vec3 {
   };
 }
 
+type OrientedMids = { from: Id; to: Id; mids: Id[] };
+
+function midsFromTo(
+  edgeToMids: Map<Id, OrientedMids>,
+  edgeId: Id,
+  from: Id,
+  to: Id,
+): Id[] | null {
+  const entry = edgeToMids.get(edgeId);
+  if (!entry || entry.mids.length === 0) return null;
+  if (entry.from === from && entry.to === to) return entry.mids;
+  if (entry.from === to && entry.to === from) return [...entry.mids].reverse();
+  return null;
+}
+
 function splitQuadLoop(
   mesh: Mesh,
   loop: Id[],
   ringSet: Set<Id>,
-  edgeToMid: Map<Id, Id>,
+  edgeToMids: Map<Id, OrientedMids>,
 ): Id[][] | null {
   if (loop.length !== 4) return null;
 
-  const mids: (Id | null)[] = [];
-  for (let i = 0; i < 4; i += 1) {
+  const edgeAt = (i: number): Id | null => {
     const a = loop[i]!;
     const b = loop[(i + 1) % 4]!;
     const edgeId = findEdgeBetween(mesh, a, b);
-    if (edgeId !== null && ringSet.has(edgeId)) {
-      mids.push(edgeToMid.get(edgeId) ?? null);
-    } else {
-      mids.push(null);
-    }
-  }
+    if (edgeId === null || !ringSet.has(edgeId)) return null;
+    return edgeId;
+  };
 
-  if (mids[0] && mids[2] && !mids[1] && !mids[3]) {
-    return [
-      [loop[0]!, mids[0], mids[2], loop[3]!],
-      [mids[0], loop[1]!, loop[2]!, mids[2]],
-    ];
+  const e0 = edgeAt(0);
+  const e1 = edgeAt(1);
+  const e2 = edgeAt(2);
+  const e3 = edgeAt(3);
+
+  const stitch = (sideA: Id[], sideC: Id[]): Id[][] => {
+    const n = sideA.length;
+    const strips: Id[][] = [];
+    strips.push([loop[0]!, sideA[0]!, sideC[0]!, loop[3]!]);
+    for (let i = 0; i < n - 1; i += 1) {
+      strips.push([sideA[i]!, sideA[i + 1]!, sideC[i + 1]!, sideC[i]!]);
+    }
+    strips.push([sideA[n - 1]!, loop[1]!, loop[2]!, sideC[n - 1]!]);
+    return strips;
+  };
+
+  const stitchAlt = (sideB: Id[], sideD: Id[]): Id[][] => {
+    const n = sideB.length;
+    const strips: Id[][] = [];
+    strips.push([loop[0]!, loop[1]!, sideB[0]!, sideD[0]!]);
+    for (let i = 0; i < n - 1; i += 1) {
+      strips.push([sideD[i]!, sideB[i]!, sideB[i + 1]!, sideD[i + 1]!]);
+    }
+    strips.push([sideD[n - 1]!, sideB[n - 1]!, loop[2]!, loop[3]!]);
+    return strips;
+  };
+
+  if (e0 !== null && e2 !== null && e1 === null && e3 === null) {
+    // sideA: loop[0]→loop[1]; sideC: loop[3]→loop[2] (mesmo fator)
+    const sideA = midsFromTo(edgeToMids, e0, loop[0]!, loop[1]!);
+    const sideC = midsFromTo(edgeToMids, e2, loop[3]!, loop[2]!);
+    if (!sideA || !sideC || sideA.length !== sideC.length) return null;
+    return stitch(sideA, sideC);
   }
-  if (mids[1] && mids[3] && !mids[0] && !mids[2]) {
-    return [
-      [loop[0]!, loop[1]!, mids[1], mids[3]],
-      [mids[1], loop[2]!, loop[3]!, mids[3]],
-    ];
+  if (e1 !== null && e3 !== null && e0 === null && e2 === null) {
+    const sideB = midsFromTo(edgeToMids, e1, loop[1]!, loop[2]!);
+    const sideD = midsFromTo(edgeToMids, e3, loop[0]!, loop[3]!);
+    if (!sideB || !sideD || sideB.length !== sideD.length) return null;
+    return stitchAlt(sideB, sideD);
   }
   return null;
 }
@@ -220,38 +259,53 @@ function clampFactor(factor: number): number {
   return Math.min(0.95, Math.max(0.05, factor));
 }
 
+function clampCuts(cuts: number): number {
+  return Math.min(12, Math.max(1, Math.round(cuts)));
+}
+
+/** Fatores ao longo da aresta para N cortes (1 = segue `factor`; N>1 = espaçados). */
+export function loopCutFactors(cuts: number, factor = 0.5): number[] {
+  const n = clampCuts(cuts);
+  if (n === 1) return [clampFactor(factor)];
+  return Array.from({ length: n }, (_, i) => (i + 1) / (n + 1));
+}
+
 /**
- * Pontos do preview do loop (um por aresta do ring), sem alterar a malha.
+ * Pontos do preview: um anel (Vec3[]) por corte, sem alterar a malha.
  * Retorna null se o ring for inválido.
  */
 export function loopCutPreviewPositions(
   mesh: Mesh,
   edgeId: Id,
   factor = 0.5,
-): Vec3[] | null {
-  const t = clampFactor(factor);
+  cuts = 1,
+): Vec3[][] | null {
   const ring = orientedEdgeRing(mesh, edgeId);
   if (ring.length < 2) return null;
 
-  return ring.map((seg) =>
-    lerp(
-      mesh.vertices.get(seg.from)!.position,
-      mesh.vertices.get(seg.to)!.position,
-      t,
+  return loopCutFactors(cuts, factor).map((t) =>
+    ring.map((seg) =>
+      lerp(
+        mesh.vertices.get(seg.from)!.position,
+        mesh.vertices.get(seg.to)!.position,
+        t,
+      ),
     ),
   );
 }
 
 /**
- * Insere um edge loop cortando o ring da aresta (`factor` 0..1, padrão 0.5).
- * t→0 aproxima o lado `from`; t→1 aproxima o lado `to`.
+ * Insere edge loop(s) cortando o ring da aresta.
+ * `factor` 0..1 (padrão 0.5) — posição quando `cuts === 1`.
+ * `cuts` ≥ 1 — quantidade de loops (scroll no Blender); N>1 espaça uniformemente.
  */
 export function loopCut(
   mesh: Mesh,
   edgeId: Id,
   factor = 0.5,
+  cuts = 1,
 ): LoopCutResult | null {
-  const t = clampFactor(factor);
+  const factors = loopCutFactors(cuts, factor);
   const ring = orientedEdgeRing(mesh, edgeId);
   if (ring.length < 2) return null;
 
@@ -260,23 +314,27 @@ export function loopCut(
   const positions = copyPositions(mesh);
   const wires = extractWires(mesh);
   const newVertexIds: Id[] = [];
-  const edgeToMid = new Map<Id, Id>();
+  const edgeToMids = new Map<Id, OrientedMids>();
   let nextId = nextVertexId(positions);
 
   for (const seg of ring) {
-    const midId = nextId++;
-    positions.set(
-      midId,
-      lerp(positions.get(seg.from)!, positions.get(seg.to)!, t),
-    );
-    edgeToMid.set(seg.edgeId, midId);
-    newVertexIds.push(midId);
+    const mids: Id[] = [];
+    for (const t of factors) {
+      const midId = nextId++;
+      positions.set(
+        midId,
+        lerp(positions.get(seg.from)!, positions.get(seg.to)!, t),
+      );
+      mids.push(midId);
+      newVertexIds.push(midId);
+    }
+    edgeToMids.set(seg.edgeId, { from: seg.from, to: seg.to, mids });
   }
 
   const faces: Id[][] = [];
   for (const face of mesh.faces.values()) {
     const loop = faceVertices(mesh, face.id);
-    const split = splitQuadLoop(mesh, loop, ringSet, edgeToMid);
+    const split = splitQuadLoop(mesh, loop, ringSet, edgeToMids);
     if (split) {
       faces.push(...split);
     } else {

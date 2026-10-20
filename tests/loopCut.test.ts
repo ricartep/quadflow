@@ -3,6 +3,7 @@ import { createCubeMesh, validateMesh } from '../src/core';
 import {
   findEdgeRing,
   loopCut,
+  loopCutFactors,
   loopCutPreviewPositions,
   orientedEdgeRing,
 } from '../src/tools/loopCut';
@@ -25,7 +26,8 @@ describe('orientedEdgeRing', () => {
     expect(ring.length).toBe(4);
 
     // Em fator ~0, cada ponto fica mais perto de `from` do que de `to`
-    const points = loopCutPreviewPositions(mesh, edgeId, 0.05)!;
+    const loops = loopCutPreviewPositions(mesh, edgeId, 0.05)!;
+    const points = loops[0]!;
     for (let i = 0; i < ring.length; i += 1) {
       const seg = ring[i]!;
       const p = points[i]!;
@@ -38,14 +40,25 @@ describe('orientedEdgeRing', () => {
   });
 });
 
+describe('loopCutFactors', () => {
+  it('1 corte usa o fator informado', () => {
+    expect(loopCutFactors(1, 0.25)).toEqual([0.25]);
+  });
+
+  it('N cortes espaça uniformemente', () => {
+    expect(loopCutFactors(3, 0.1)).toEqual([0.25, 0.5, 0.75]);
+  });
+});
+
 describe('loopCutPreviewPositions', () => {
-  it('devolve um ponto por aresta do ring sem alterar a malha', () => {
+  it('devolve um anel por corte sem alterar a malha', () => {
     const mesh = createCubeMesh();
     const edgeId = mesh.edges.keys().next().value!;
     const beforeVerts = mesh.vertices.size;
-    const points = loopCutPreviewPositions(mesh, edgeId, 0.5);
-    expect(points).not.toBeNull();
-    expect(points!).toHaveLength(4);
+    const loops = loopCutPreviewPositions(mesh, edgeId, 0.5, 2);
+    expect(loops).not.toBeNull();
+    expect(loops!).toHaveLength(2);
+    expect(loops![0]!).toHaveLength(4);
     expect(mesh.vertices.size).toBe(beforeVerts);
   });
 
@@ -55,8 +68,8 @@ describe('loopCutPreviewPositions', () => {
     const seg = orientedEdgeRing(mesh, edgeId)[0]!;
     const a = mesh.vertices.get(seg.from)!.position;
     const b = mesh.vertices.get(seg.to)!.position;
-    const points = loopCutPreviewPositions(mesh, edgeId, 0.25)!;
-    const p = points[0]!;
+    const loops = loopCutPreviewPositions(mesh, edgeId, 0.25)!;
+    const p = loops[0]![0]!;
     expect(p.x).toBeCloseTo(a.x + (b.x - a.x) * 0.25);
     expect(p.y).toBeCloseTo(a.y + (b.y - a.y) * 0.25);
     expect(p.z).toBeCloseTo(a.z + (b.z - a.z) * 0.25);
@@ -96,5 +109,19 @@ describe('loopCut', () => {
     expect(mid.x).toBeCloseTo((a.x + b.x) / 2);
     expect(mid.y).toBeCloseTo((a.y + b.y) / 2);
     expect(mid.z).toBeCloseTo((a.z + b.z) / 2);
+  });
+
+  it('3 cortes criam 3 loops e malha válida', () => {
+    const mesh = createCubeMesh();
+    const edgeId = mesh.edges.keys().next().value!;
+    const beforeFaces = mesh.faces.size;
+    const beforeVerts = mesh.vertices.size;
+
+    const result = loopCut(mesh, edgeId, 0.5, 3)!;
+    expect(result.newVertexIds).toHaveLength(12);
+    expect(result.mesh.vertices.size).toBe(beforeVerts + 12);
+    // 4 faces do belt × 3 cortes extras → +12; caps intactas
+    expect(result.mesh.faces.size).toBe(beforeFaces + 12);
+    expect(validateMesh(result.mesh)).toEqual([]);
   });
 });

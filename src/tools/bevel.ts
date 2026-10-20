@@ -23,6 +23,26 @@ function lerp(a: Vec3, b: Vec3, t: number): Vec3 {
   };
 }
 
+/**
+ * Ponto do perfil do chanfro.
+ * `shape` −1..1 — 0 plano; +1 para fora (canto); −1 para dentro.
+ */
+function profilePoint(
+  a0: Vec3,
+  a1: Vec3,
+  corner: Vec3,
+  u: number,
+  shape: number,
+): Vec3 {
+  const chord = lerp(a0, a1, u);
+  const w = Math.sin(Math.PI * u) * Math.min(1, Math.max(-1, shape));
+  return {
+    x: chord.x + (corner.x - chord.x) * w,
+    y: chord.y + (corner.y - chord.y) * w,
+    z: chord.z + (corner.z - chord.z) * w,
+  };
+}
+
 function edgeEndpoints(mesh: Mesh, edgeId: Id): [Id, Id] {
   const edge = mesh.edges.get(edgeId);
   if (!edge) throw new Error(`Aresta ${edgeId} não encontrada`);
@@ -72,16 +92,22 @@ function otherFaceOnEdge(
 /**
  * Bevel de arestas (Ctrl+B).
  * `amount` 0..1 — fração ao longo das arestas adjacentes (padrão 0.25).
+ * `segments` ≥ 1 — subdivisões do chanfro (scroll).
+ * `profile` −1..1 — 0 plano · +1 para fora · −1 para dentro.
  */
 export function bevelEdges(
   mesh: Mesh,
   edgeIds: readonly Id[],
   amount = 0.25,
+  segments = 1,
+  profile = 0,
 ): BevelResult | null {
   const selected = [...new Set(edgeIds)].filter((id) => mesh.edges.has(id));
   if (selected.length === 0) return null;
 
   const t = Math.min(0.45, Math.max(0.05, amount));
+  const segs = Math.min(12, Math.max(1, Math.round(segments)));
+  const shape = Math.min(1, Math.max(-1, profile));
   const bevelEdgeList = selected.filter(
     (id) => edgeFaceIds(mesh, id).length === 2,
   );
@@ -102,6 +128,11 @@ export function bevelEdges(
   }
 
   const positions = copyPositions(mesh);
+  const cornerPos = new Map<Id, Vec3>();
+  for (const id of endpointIds) {
+    const p = positions.get(id)!;
+    cornerPos.set(id, { x: p.x, y: p.y, z: p.z });
+  }
   const wires = extractWires(mesh);
   let nextId = nextVertexId(positions);
   const newVertexIds: Id[] = [];
@@ -221,7 +252,11 @@ export function bevelEdges(
     if (newLoop.length >= 3) faces.push(newLoop);
   }
 
-  // Passo 3: quads de chanfro
+  // Passo 3: faixa de chanfro (1+ segments)
+  // Perfis nos extremos (rowA / rowB) precisam ser inseridos nas faces
+  // laterais para o half-edge fechar quando segs > 1.
+  const profiles: Id[][] = [];
+
   for (const edgeId of bevelEdgeList) {
     const [a, b] = edgeEndpoints(mesh, edgeId);
     const [f0, f1] = edgeFaceIds(mesh, edgeId);
@@ -237,7 +272,78 @@ export function bevelEdges(
     ) {
       continue;
     }
-    faces.push([a0, b0, b1, a1]);
+
+    const rowA: Id[] = [a0];
+    const rowB: Id[] = [b0];
+    const pa0 = positions.get(a0)!;
+    const pa1 = positions.get(a1)!;
+    const pb0 = positions.get(b0)!;
+    const pb1 = positions.get(b1)!;
+    const cornerA = cornerPos.get(a)!;
+    const cornerB = cornerPos.get(b)!;
+
+    for (let s = 1; s < segs; s += 1) {
+      const u = s / segs;
+      const ia = nextId++;
+      const ib = nextId++;
+      positions.set(ia, profilePoint(pa0, pa1, cornerA, u, shape));
+      positions.set(ib, profilePoint(pb0, pb1, cornerB, u, shape));
+      newVertexIds.push(ia, ib);
+      rowA.push(ia);
+      rowB.push(ib);
+    }
+    rowA.push(a1);
+    rowB.push(b1);
+
+    if (segs > 1) {
+      profiles.push(rowA, rowB);
+    }
+
+    for (let s = 0; s < segs; s += 1) {
+      faces.push([rowA[s]!, rowB[s]!, rowB[s + 1]!, rowA[s + 1]!]);
+    }
+  }
+
+  if (profiles.length > 0) {
+    for (let fi = 0; fi < faces.length; fi += 1) {
+      let loop = faces[fi]!;
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const profile of profiles) {
+          const first = profile[0]!;
+          const last = profile[profile.length - 1]!;
+          const mids = profile.slice(1, -1);
+          if (mids.length === 0) continue;
+          const n = loop.length;
+          for (let i = 0; i < n; i += 1) {
+            const a = loop[i]!;
+            const b = loop[(i + 1) % n]!;
+            if (a === first && b === last) {
+              loop = [
+                ...loop.slice(0, i + 1),
+                ...mids,
+                ...loop.slice(i + 1),
+              ];
+              changed = true;
+              break;
+            }
+            if (a === last && b === first) {
+              const rev = [...mids].reverse();
+              loop = [
+                ...loop.slice(0, i + 1),
+                ...rev,
+                ...loop.slice(i + 1),
+              ];
+              changed = true;
+              break;
+            }
+          }
+          if (changed) break;
+        }
+      }
+      faces[fi] = loop;
+    }
   }
 
   // Remove extremos originais que sobraram isolados

@@ -145,14 +145,12 @@ export const KEYMAP: readonly KeyBinding[] = [
     action: 'undo',
     code: 'KeyZ',
     ctrl: true,
-    blocksDuringTransform: true,
   },
   {
     action: 'redo',
     code: 'KeyZ',
     ctrl: true,
     shift: true,
-    blocksDuringTransform: true,
   },
   {
     action: 'toggleImmersive',
