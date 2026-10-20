@@ -8,6 +8,7 @@ import {
   shouldPreventBrowserDefault,
   toggleImmersive,
 } from '../input';
+import { subdivideCatmullClark } from '../modifiers';
 import {
   addPrimitive,
   appendNumericChar,
@@ -75,6 +76,7 @@ import {
   selectAllObjects,
   setObjectSelection,
   writeActiveMesh,
+  type SceneObject,
   type SceneState,
 } from './scene';
 import {
@@ -130,6 +132,41 @@ export function createViewport(container: HTMLElement): Viewport {
   let transformOriginArmed = false;
   /** Snapshot pré-operador (E / Ctrl+R): Esc no G restaura a malha. */
   let pendingRestore: Mesh | null = null;
+  /** true = mostra resultado Catmull-Clark quando subdLevels > 0. */
+  let showSubdResult = true;
+
+  type LoopCutSession = {
+    edgeId: number | null;
+    factor: number;
+    cuts: number;
+  };
+  let loopCutSession: LoopCutSession | null = null;
+
+  type BevelSession = {
+    edgeIds: number[];
+    amount: number;
+    segments: number;
+    profile: number;
+    startX: number | null;
+    startY: number | null;
+  };
+  let bevelSession: BevelSession | null = null;
+  let bevelBaseMesh: Mesh | null = null;
+
+  const displayMeshFor = (obj: SceneObject, base: Mesh): Mesh => {
+    const levels = Math.min(3, Math.max(0, Math.floor(obj.subdLevels)));
+    // Durante operadores, mostra a base (CC a cada frame seria caro)
+    if (
+      !showSubdResult ||
+      levels <= 0 ||
+      transform !== null ||
+      loopCutSession !== null ||
+      bevelSession !== null
+    ) {
+      return base;
+    }
+    return subdivideCatmullClark(base, levels);
+  };
   const status: StatusBar = createStatusBar(container);
   const legend: ShortcutLegend = createShortcutLegend(container);
   const immersiveBtn: ImmersiveToggle = createImmersiveToggle(container, () => {
@@ -153,7 +190,11 @@ export function createViewport(container: HTMLElement): Viewport {
     }
     views.clear();
     for (const obj of sceneState.objects) {
-      const view = createMeshView(obj.mesh);
+      const base =
+        obj.id === sceneState.activeId && hasActiveObject(sceneState)
+          ? mesh
+          : obj.mesh;
+      const view = createMeshView(displayMeshFor(obj, base));
       views.set(obj.id, view);
       scene.add(view.group);
     }
@@ -181,24 +222,6 @@ export function createViewport(container: HTMLElement): Viewport {
     selection = clearSelection(selection);
     applySelection();
   });
-
-  type LoopCutSession = {
-    edgeId: number | null;
-    factor: number;
-    cuts: number;
-  };
-  let loopCutSession: LoopCutSession | null = null;
-
-  type BevelSession = {
-    edgeIds: number[];
-    amount: number;
-    segments: number;
-    profile: number;
-    startX: number | null;
-    startY: number | null;
-  };
-  let bevelSession: BevelSession | null = null;
-  let bevelBaseMesh: Mesh | null = null;
 
   const syncBevelPanel = (): void => {
     if (!bevelSession) {
@@ -311,15 +334,24 @@ export function createViewport(container: HTMLElement): Viewport {
     const activeName = hasActiveObject(sceneState)
       ? getActiveObject(sceneState).name
       : undefined;
-    status.update(
-      formatSelectionStatus({
-        appMode: selection.appMode,
-        domain: selection.domain,
-        count: selectedCount(selection),
-        objectCount: sceneState.selectedIds.size,
-        activeName,
-      }),
-    );
+    const baseStatus = formatSelectionStatus({
+      appMode: selection.appMode,
+      domain: selection.domain,
+      count: selectedCount(selection),
+      objectCount: sceneState.selectedIds.size,
+      activeName,
+    });
+    if (hasActiveObject(sceneState)) {
+      const levels = getActiveObject(sceneState).subdLevels;
+      if (levels > 0) {
+        const view = showSubdResult ? 'resultado' : 'base';
+        status.update(
+          `${baseStatus} · Subdiv ${levels} (${view}) · \` alterna · Ctrl+0 limpa`,
+        );
+        return;
+      }
+    }
+    status.update(baseStatus);
   };
 
   const applyObjectHighlights = (): void => {
@@ -336,7 +368,12 @@ export function createViewport(container: HTMLElement): Viewport {
   const applySelection = (): void => {
     const view = activeView();
     if (view) {
-      if (selection.appMode === 'edit') {
+      const showingSubd =
+        hasActiveObject(sceneState) &&
+        showSubdResult &&
+        getActiveObject(sceneState).subdLevels > 0;
+      // Seleção é da malha-base; no resultado CC os IDs não batem
+      if (selection.appMode === 'edit' && !showingSubd) {
         view.setSelection(selection, mesh);
       } else {
         view.setSelection(clearSelection(selection), mesh);
@@ -360,11 +397,37 @@ export function createViewport(container: HTMLElement): Viewport {
 
   const syncActiveView = (): void => {
     const view = activeView();
-    if (!view) return;
-    view.updateMesh(mesh);
-    if (selection.appMode === 'edit') {
+    if (!view || !hasActiveObject(sceneState)) return;
+    const obj = getActiveObject(sceneState);
+    const display = displayMeshFor(obj, mesh);
+    view.updateMesh(display);
+    const showingSubd = showSubdResult && obj.subdLevels > 0;
+    if (selection.appMode === 'edit' && !showingSubd) {
       view.setSelection(selection, mesh);
+    } else {
+      view.setSelection(clearSelection(selection), mesh);
     }
+  };
+
+  const setSubdLevel = (level: number): void => {
+    if (!hasActiveObject(sceneState)) return;
+    if (transform) cancelTransform();
+    if (loopCutSession) cancelLoopCut();
+    if (bevelSession) cancelBevel();
+    writeActiveMesh(sceneState, mesh);
+    const obj = getActiveObject(sceneState);
+    obj.subdLevels = Math.min(3, Math.max(0, level));
+    if (obj.subdLevels > 0) showSubdResult = true;
+    rebuildViews();
+    applySelection();
+  };
+
+  const toggleSubdView = (): void => {
+    if (!hasActiveObject(sceneState)) return;
+    if (getActiveObject(sceneState).subdLevels <= 0) return;
+    showSubdResult = !showSubdResult;
+    rebuildViews();
+    applySelection();
   };
 
   const previewTransform = (): void => {
@@ -993,6 +1056,21 @@ export function createViewport(container: HTMLElement): Viewport {
       }
       case 'toggleImmersive':
         void toggleImmersive(container);
+        break;
+      case 'subdLevel0':
+        setSubdLevel(0);
+        break;
+      case 'subdLevel1':
+        setSubdLevel(1);
+        break;
+      case 'subdLevel2':
+        setSubdLevel(2);
+        break;
+      case 'subdLevel3':
+        setSubdLevel(3);
+        break;
+      case 'toggleSubdView':
+        toggleSubdView();
         break;
     }
   };

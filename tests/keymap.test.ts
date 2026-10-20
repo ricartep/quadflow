@@ -75,4 +75,37 @@ describe('matchKeyAction loopCut / immersive', () => {
       matchKeyAction(keyEvent('KeyB', { ctrlKey: true }), true, false),
     ).toBe('bevel');
   });
+
+  it('Ctrl+0/1/2/3 → níveis de subdivisão; ` → toggle', () => {
+    expect(
+      matchKeyAction(keyEvent('Digit0', { ctrlKey: true }), false, false),
+    ).toBe('subdLevel0');
+    expect(
+      matchKeyAction(keyEvent('Digit1', { ctrlKey: true }), true, false),
+    ).toBe('subdLevel1');
+    expect(
+      matchKeyAction(keyEvent('Digit2', { ctrlKey: true }), false, false),
+    ).toBe('subdLevel2');
+    expect(
+      matchKeyAction(keyEvent('Digit3', { ctrlKey: true }), false, false),
+    ).toBe('subdLevel3');
+    expect(matchKeyAction(keyEvent('Backquote'), false, false)).toBe(
+      'toggleSubdView',
+    );
+  });
+
+  it('1/2/3 sem Ctrl em edit continuam modo vértice/aresta/face', () => {
+    expect(matchKeyAction(keyEvent('Digit1'), true, false)).toBe('modeVertex');
+    expect(matchKeyAction(keyEvent('Digit2'), true, false)).toBe('modeEdge');
+    expect(matchKeyAction(keyEvent('Digit3'), true, false)).toBe('modeFace');
+  });
+
+  it('bloqueia Ctrl+0/1/2/3 no browser', () => {
+    expect(
+      shouldPreventBrowserDefault(keyEvent('Digit0', { ctrlKey: true })),
+    ).toBe(true);
+    expect(
+      shouldPreventBrowserDefault(keyEvent('Digit1', { ctrlKey: true })),
+    ).toBe(true);
+  });
 });

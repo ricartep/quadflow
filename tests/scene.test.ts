@@ -15,7 +15,15 @@ describe('scene objects', () => {
     const scene = createInitialScene();
     expect(scene.objects).toHaveLength(1);
     expect(scene.objects[0]!.name).toBe('Cube');
+    expect(scene.objects[0]!.subdLevels).toBe(0);
     expect(scene.selectedIds.has(0)).toBe(true);
+  });
+
+  it('duplicateSceneObjects preserva subdLevels', () => {
+    const scene = createInitialScene();
+    scene.objects[0]!.subdLevels = 2;
+    const [dup] = duplicateSceneObjects(scene, [0]);
+    expect(dup!.subdLevels).toBe(2);
   });
 
   it('addSceneObject cria Cube.001 e torna ativo', () => {

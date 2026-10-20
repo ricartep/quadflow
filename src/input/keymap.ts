@@ -23,7 +23,12 @@ export type KeyAction =
   | 'confirmTransform'
   | 'undo'
   | 'redo'
-  | 'toggleImmersive';
+  | 'toggleImmersive'
+  | 'subdLevel0'
+  | 'subdLevel1'
+  | 'subdLevel2'
+  | 'subdLevel3'
+  | 'toggleSubdView';
 
 export interface KeyBinding {
   action: KeyAction;
@@ -157,6 +162,35 @@ export const KEYMAP: readonly KeyBinding[] = [
     code: 'F11',
     blocksDuringTransform: true,
   },
+  {
+    action: 'subdLevel0',
+    code: 'Digit0',
+    ctrl: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'subdLevel1',
+    code: 'Digit1',
+    ctrl: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'subdLevel2',
+    code: 'Digit2',
+    ctrl: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'subdLevel3',
+    code: 'Digit3',
+    ctrl: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'toggleSubdView',
+    code: 'Backquote',
+    blocksDuringTransform: true,
+  },
 ] as const;
 
 /**
@@ -179,7 +213,11 @@ export function shouldPreventBrowserDefault(event: KeyboardEvent): boolean {
     event.code === 'KeyB' ||
     event.code === 'KeyW' ||
     event.code === 'KeyN' ||
-    event.code === 'KeyT'
+    event.code === 'KeyT' ||
+    event.code === 'Digit0' ||
+    event.code === 'Digit1' ||
+    event.code === 'Digit2' ||
+    event.code === 'Digit3'
   );
 }
 

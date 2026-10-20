@@ -8,6 +8,8 @@ export interface SceneObject {
   name: string;
   kind: ObjectKind;
   mesh: Mesh;
+  /** Níveis de Catmull-Clark na viewport (Ctrl+0/1/2/3). */
+  subdLevels: number;
 }
 
 export interface SceneState {
@@ -34,7 +36,7 @@ const KIND_LABEL: Record<ObjectKind, string> = {
 export function createInitialScene(): SceneState {
   const mesh = createCubeMesh();
   return {
-    objects: [{ id: 0, name: 'Cube', kind: 'cube', mesh }],
+    objects: [{ id: 0, name: 'Cube', kind: 'cube', mesh, subdLevels: 0 }],
     activeId: 0,
     selectedIds: new Set([0]),
     nextId: 1,
@@ -49,6 +51,7 @@ export function cloneSceneState(scene: SceneState): SceneState {
       name: obj.name,
       kind: obj.kind,
       mesh: cloneMesh(obj.mesh),
+      subdLevels: obj.subdLevels,
     })),
     activeId: scene.activeId,
     selectedIds: new Set(scene.selectedIds),
@@ -87,6 +90,7 @@ export function addSceneObject(
     name: nextName(scene, kind),
     kind,
     mesh: cloneMesh(mesh),
+    subdLevels: 0,
   };
   scene.objects.push(obj);
   scene.activeId = obj.id;
@@ -107,6 +111,7 @@ export function duplicateSceneObjects(
       name: nextName(scene, src.kind),
       kind: src.kind,
       mesh: cloneMesh(src.mesh),
+      subdLevels: src.subdLevels,
     };
     scene.objects.push(obj);
     created.push(obj);
