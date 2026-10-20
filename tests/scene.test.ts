@@ -4,7 +4,9 @@ import { addPrimitive } from '../src/tools/primitives';
 import {
   addSceneObject,
   createInitialScene,
+  deleteSceneObjects,
   duplicateSceneObjects,
+  hasActiveObject,
   setObjectSelection,
 } from '../src/viewport/scene';
 
@@ -42,5 +44,22 @@ describe('scene objects', () => {
     setObjectSelection(scene, 0, false);
     setObjectSelection(scene, b.id, true);
     expect(scene.selectedIds.size).toBe(2);
+  });
+
+  it('deleteSceneObjects remove e promove outro ativo', () => {
+    const scene = createInitialScene();
+    const built = addPrimitive(createEmptyMesh(), 'plane', 1);
+    const plane = addSceneObject(scene, built.mesh, 'plane');
+    deleteSceneObjects(scene, [0]);
+    expect(scene.objects).toHaveLength(1);
+    expect(scene.activeId).toBe(plane.id);
+    expect(hasActiveObject(scene)).toBe(true);
+  });
+
+  it('deleteSceneObjects de todos deixa a cena vazia', () => {
+    const scene = createInitialScene();
+    deleteSceneObjects(scene, [0]);
+    expect(scene.objects).toHaveLength(0);
+    expect(hasActiveObject(scene)).toBe(false);
   });
 });

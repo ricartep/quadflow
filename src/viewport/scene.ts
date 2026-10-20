@@ -150,10 +150,48 @@ export function selectAllObjects(scene: SceneState): void {
 }
 
 export function clearObjectSelection(scene: SceneState): void {
+  if (!hasActiveObject(scene)) {
+    scene.selectedIds = new Set();
+    return;
+  }
   scene.selectedIds = new Set([scene.activeId]);
 }
 
 export function writeActiveMesh(scene: SceneState, mesh: Mesh): void {
   const obj = getActiveObject(scene);
   obj.mesh = cloneMesh(mesh);
+}
+
+/**
+ * Remove objetos da cena (Object Mode · X).
+ * Se a cena ficar vazia, `activeId` vira -1.
+ */
+export function deleteSceneObjects(
+  scene: SceneState,
+  ids: readonly number[],
+): void {
+  const remove = new Set(ids);
+  if (remove.size === 0) return;
+
+  scene.objects = scene.objects.filter((o) => !remove.has(o.id));
+  scene.selectedIds = new Set(
+    [...scene.selectedIds].filter((id) => !remove.has(id)),
+  );
+
+  if (scene.objects.length === 0) {
+    scene.activeId = -1;
+    scene.selectedIds = new Set();
+    return;
+  }
+
+  if (!getObject(scene, scene.activeId)) {
+    scene.activeId = scene.objects[0]!.id;
+  }
+  if (scene.selectedIds.size === 0) {
+    scene.selectedIds = new Set([scene.activeId]);
+  }
+}
+
+export function hasActiveObject(scene: SceneState): boolean {
+  return scene.activeId >= 0 && getObject(scene, scene.activeId) !== undefined;
 }

@@ -94,7 +94,11 @@ export const KEYMAP: readonly KeyBinding[] = [
   {
     action: 'delete',
     code: 'KeyX',
-    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'delete',
+    code: 'Delete',
     blocksDuringTransform: true,
   },
   {

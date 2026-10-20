@@ -54,6 +54,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
         { keys: 'Clique', desc: 'Selecionar objeto · Shift acumula' },
         { keys: 'Shift+A', desc: 'Add Mesh — menu de primitivas' },
         { keys: 'Shift+D', desc: 'Duplicar objeto(s) + G' },
+        { keys: 'X / Del', desc: 'Apagar objeto(s) selecionado(s)' },
         { keys: 'G', desc: 'Mover objeto ativo' },
         { keys: 'Ctrl+Z', desc: 'Desfazer' },
         { keys: 'Ctrl+Shift+Z', desc: 'Refazer' },

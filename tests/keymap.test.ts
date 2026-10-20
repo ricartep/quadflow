@@ -64,4 +64,9 @@ describe('matchKeyAction loopCut / immersive', () => {
   it('I em edit → inset', () => {
     expect(matchKeyAction(keyEvent('KeyI'), true, false)).toBe('inset');
   });
+
+  it('X e Delete apagam em object ou edit', () => {
+    expect(matchKeyAction(keyEvent('KeyX'), false, false)).toBe('delete');
+    expect(matchKeyAction(keyEvent('Delete'), false, false)).toBe('delete');
+  });
 });

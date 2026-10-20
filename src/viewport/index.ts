@@ -66,8 +66,10 @@ import {
   addSceneObject,
   clearObjectSelection,
   createInitialScene,
+  deleteSceneObjects,
   duplicateSceneObjects,
   getActiveObject,
+  hasActiveObject,
   selectAllObjects,
   setObjectSelection,
   writeActiveMesh,
@@ -138,10 +140,9 @@ export function createViewport(container: HTMLElement): Viewport {
 
   scene.add(createGrid());
 
-  const activeView = (): MeshView => {
-    const view = views.get(sceneState.activeId);
-    if (!view) throw new Error('View do objeto ativo ausente');
-    return view;
+  const activeView = (): MeshView | null => {
+    if (!hasActiveObject(sceneState)) return null;
+    return views.get(sceneState.activeId) ?? null;
   };
 
   const rebuildViews = (): void => {
@@ -249,14 +250,16 @@ export function createViewport(container: HTMLElement): Viewport {
       );
       return;
     }
-    const active = getActiveObject(sceneState);
+    const activeName = hasActiveObject(sceneState)
+      ? getActiveObject(sceneState).name
+      : undefined;
     status.update(
       formatSelectionStatus({
         appMode: selection.appMode,
         domain: selection.domain,
         count: selectedCount(selection),
         objectCount: sceneState.selectedIds.size,
-        activeName: active.name,
+        activeName,
       }),
     );
   };
@@ -274,10 +277,12 @@ export function createViewport(container: HTMLElement): Viewport {
 
   const applySelection = (): void => {
     const view = activeView();
-    if (selection.appMode === 'edit') {
-      view.setSelection(selection, mesh);
-    } else {
-      view.setSelection(clearSelection(selection), mesh);
+    if (view) {
+      if (selection.appMode === 'edit') {
+        view.setSelection(selection, mesh);
+      } else {
+        view.setSelection(clearSelection(selection), mesh);
+      }
     }
     applyObjectHighlights();
     refreshOutliner();
@@ -285,16 +290,22 @@ export function createViewport(container: HTMLElement): Viewport {
   };
 
   const commitScene = (): void => {
-    writeActiveMesh(sceneState, mesh);
+    if (hasActiveObject(sceneState)) {
+      writeActiveMesh(sceneState, mesh);
+    }
     commitSceneHistory(sceneHistory, sceneState);
     sceneState = sceneHistory.present;
-    mesh = cloneMesh(getActiveObject(sceneState).mesh);
+    mesh = hasActiveObject(sceneState)
+      ? cloneMesh(getActiveObject(sceneState).mesh)
+      : createEmptyMesh();
   };
 
   const syncActiveView = (): void => {
-    activeView().updateMesh(mesh);
+    const view = activeView();
+    if (!view) return;
+    view.updateMesh(mesh);
     if (selection.appMode === 'edit') {
-      activeView().setSelection(selection, mesh);
+      view.setSelection(selection, mesh);
     }
   };
 
@@ -332,16 +343,21 @@ export function createViewport(container: HTMLElement): Viewport {
 
   const applyHistoryScene = (next: SceneState): void => {
     sceneState = next;
-    mesh = cloneMesh(getActiveObject(sceneState).mesh);
-    selection = clearSelection(selection);
+    mesh = hasActiveObject(sceneState)
+      ? cloneMesh(getActiveObject(sceneState).mesh)
+      : createEmptyMesh();
+    if (!hasActiveObject(sceneState) && selection.appMode === 'edit') {
+      selection = clearSelection({ ...selection, appMode: 'object' });
+    } else {
+      selection = clearSelection(selection);
+    }
     rebuildViews();
     applySelection();
   };
 
   const startTransform = (kind: 'grab' | 'rotate' | 'scale'): void => {
+    if (!hasActiveObject(sceneState)) return;
     if (selection.appMode === 'object') {
-      // Object Mode: move todos os verts dos objetos selecionados via ativo
-      // (objetos extras: aplica o mesmo delta depois no confirm — MVP: só ativo)
       const ids = [...mesh.vertices.keys()];
       const session = beginTransform(mesh, ids, kind);
       if (!session) return;
@@ -384,7 +400,9 @@ export function createViewport(container: HTMLElement): Viewport {
     if (loopCutSession) cancelLoopCut();
     if (transform) cancelTransform();
 
-    writeActiveMesh(sceneState, mesh);
+    if (hasActiveObject(sceneState)) {
+      writeActiveMesh(sceneState, mesh);
+    }
     const built = addPrimitive(createEmptyMesh(), kind, 1);
     addSceneObject(sceneState, built.mesh, kind);
     commitSceneHistory(sceneHistory, sceneState);
@@ -417,6 +435,7 @@ export function createViewport(container: HTMLElement): Viewport {
     if (transform) cancelTransform();
 
     if (selection.appMode === 'object') {
+      if (!hasActiveObject(sceneState)) return;
       writeActiveMesh(sceneState, mesh);
       const ids = [...sceneState.selectedIds];
       if (ids.length === 0) return;
@@ -604,7 +623,27 @@ export function createViewport(container: HTMLElement): Viewport {
   };
 
   const runDelete = (): void => {
-    if (selection.appMode !== 'edit') return;
+    if (selection.appMode === 'object') {
+      const ids = [...sceneState.selectedIds];
+      if (ids.length === 0) return;
+      if (transform) cancelTransform();
+      if (loopCutSession) cancelLoopCut();
+      // Não gravar malha de objetos que serão apagados
+      if (hasActiveObject(sceneState) && !ids.includes(sceneState.activeId)) {
+        writeActiveMesh(sceneState, mesh);
+      }
+      deleteSceneObjects(sceneState, ids);
+      commitSceneHistory(sceneHistory, sceneState);
+      sceneState = sceneHistory.present;
+      mesh = hasActiveObject(sceneState)
+        ? cloneMesh(getActiveObject(sceneState).mesh)
+        : createEmptyMesh();
+      rebuildViews();
+      selection = clearSelection({ ...selection, appMode: 'object' });
+      applySelection();
+      return;
+    }
+
     if (selection.domain === 'face' && selection.faces.size > 0) {
       commitMeshChange(deleteFaces(mesh, [...selection.faces]));
       return;
@@ -671,6 +710,7 @@ export function createViewport(container: HTMLElement): Viewport {
 
     switch (action) {
       case 'toggleObjectEdit':
+        if (!hasActiveObject(sceneState)) break;
         if (selection.appMode === 'object') {
           writeActiveMesh(sceneState, mesh);
           mesh = cloneMesh(getActiveObject(sceneState).mesh);
@@ -858,7 +898,9 @@ export function createViewport(container: HTMLElement): Viewport {
         }
         return;
       }
-      writeActiveMesh(sceneState, mesh);
+      if (hasActiveObject(sceneState)) {
+        writeActiveMesh(sceneState, mesh);
+      }
       setObjectSelection(sceneState, hitObj, additive);
       mesh = cloneMesh(getActiveObject(sceneState).mesh);
       applySelection();
@@ -866,6 +908,7 @@ export function createViewport(container: HTMLElement): Viewport {
     }
 
     const view = activeView();
+    if (!view) return;
     const hit = pickElement(
       selection.domain,
       mesh,
