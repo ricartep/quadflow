@@ -1,4 +1,8 @@
 export {
+  bevelEdges,
+  type BevelResult,
+} from './bevel';
+export {
   duplicateSelection,
   type DuplicateResult,
 } from './duplicate';

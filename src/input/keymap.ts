@@ -15,6 +15,7 @@ export type KeyAction =
   | 'addPrimitive'
   | 'duplicate'
   | 'inset'
+  | 'bevel'
   | 'axisX'
   | 'axisY'
   | 'axisZ'
@@ -126,7 +127,15 @@ export const KEYMAP: readonly KeyBinding[] = [
     requiresEdit: true,
     blocksDuringTransform: true,
   },
+  {
+    action: 'bevel',
+    code: 'KeyB',
+    ctrl: true,
+    requiresEdit: true,
+    blocksDuringTransform: true,
+  },
   { action: 'axisX', code: 'KeyX', requiresTransform: true },
+
   { action: 'axisY', code: 'KeyY', requiresTransform: true },
   { action: 'axisZ', code: 'KeyZ', requiresTransform: true },
   { action: 'cancelTransform', code: 'Escape', requiresTransform: true },
@@ -169,6 +178,7 @@ export function shouldPreventBrowserDefault(event: KeyboardEvent): boolean {
     event.code === 'KeyS' ||
     event.code === 'KeyZ' ||
     event.code === 'KeyA' ||
+    event.code === 'KeyB' ||
     event.code === 'KeyW' ||
     event.code === 'KeyN' ||
     event.code === 'KeyT'

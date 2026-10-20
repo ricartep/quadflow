@@ -96,6 +96,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
       rows: [
         ...shared,
         { keys: 'E', desc: 'Extrude — cria uma face (quad)' },
+        { keys: 'Ctrl+B', desc: 'Bevel — chanfro nas arestas' },
         { keys: 'X', desc: 'Dissolve (fundir faces)' },
         { keys: 'M', desc: 'Merge dos extremos' },
         { keys: 'Clique', desc: 'Selecionar · Shift acumula' },

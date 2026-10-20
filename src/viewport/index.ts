@@ -13,6 +13,7 @@ import {
   appendNumericChar,
   applyPositions,
   beginTransform,
+  bevelEdges,
   deleteFaces,
   deleteVertices,
   dissolveEdges,
@@ -622,6 +623,27 @@ export function createViewport(container: HTMLElement): Viewport {
     commitMeshChange(mergeVerticesAtCenter(mesh, ids));
   };
 
+  const runBevel = (): void => {
+    if (selection.appMode !== 'edit') return;
+    if (selection.domain !== 'edge' || selection.edges.size === 0) return;
+
+    const result = bevelEdges(mesh, [...selection.edges], 0.25);
+    if (!result || result.newVertexIds.length === 0) return;
+
+    pendingRestore = cloneMesh(mesh);
+    mesh = result.mesh;
+    syncActiveView();
+    selection = {
+      appMode: 'edit',
+      domain: 'vertex',
+      vertices: new Set(result.newVertexIds),
+      edges: new Set(),
+      faces: new Set(),
+    };
+    applySelection();
+    startTransform('grab');
+  };
+
   const runDelete = (): void => {
     if (selection.appMode === 'object') {
       const ids = [...sceneState.selectedIds];
@@ -773,6 +795,9 @@ export function createViewport(container: HTMLElement): Viewport {
         break;
       case 'inset':
         runInset();
+        break;
+      case 'bevel':
+        runBevel();
         break;
       case 'merge':
         runMerge();

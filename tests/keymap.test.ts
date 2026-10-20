@@ -69,4 +69,10 @@ describe('matchKeyAction loopCut / immersive', () => {
     expect(matchKeyAction(keyEvent('KeyX'), false, false)).toBe('delete');
     expect(matchKeyAction(keyEvent('Delete'), false, false)).toBe('delete');
   });
+
+  it('Ctrl+B em edit → bevel', () => {
+    expect(
+      matchKeyAction(keyEvent('KeyB', { ctrlKey: true }), true, false),
+    ).toBe('bevel');
+  });
 });
