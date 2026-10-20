@@ -28,6 +28,7 @@ import {
   extrudeVertices,
   formatTransformStatus,
   loopCut,
+  loopCutPreviewPositions,
   mergeVerticesAtCenter,
   positionsFromSession,
   restorePositions,
@@ -53,8 +54,10 @@ import { createGrid } from './grid';
 import { createMeshView } from './meshView';
 import {
   collectInScreenBox,
+  edgeFactorAtPointer,
   normalizeScreenBox,
   pickElement,
+  pickNearestEdge,
 } from './picking';
 import { createRenderer, createScene } from './renderer';
 import {
@@ -115,14 +118,74 @@ export function createViewport(container: HTMLElement): Viewport {
   scene.add(createGrid());
   scene.add(meshView.group);
 
+  type LoopCutSession = {
+    edgeId: number | null;
+    factor: number;
+  };
+  let loopCutSession: LoopCutSession | null = null;
+
+  const previewGeom = new THREE.BufferGeometry();
+  const previewMat = new THREE.LineBasicMaterial({
+    color: 0xff7a00,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const previewLine = new THREE.LineLoop(previewGeom, previewMat);
+  previewLine.visible = false;
+  previewLine.renderOrder = 10;
+  scene.add(previewLine);
+
+  const clearLoopCutPreview = (): void => {
+    previewLine.visible = false;
+    previewGeom.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(0), 3),
+    );
+  };
+
+  const drawLoopCutPreview = (): void => {
+    if (!loopCutSession || loopCutSession.edgeId === null) {
+      clearLoopCutPreview();
+      return;
+    }
+    const points = loopCutPreviewPositions(
+      mesh,
+      loopCutSession.edgeId,
+      loopCutSession.factor,
+    );
+    if (!points || points.length < 2) {
+      clearLoopCutPreview();
+      return;
+    }
+    const arr = new Float32Array(points.length * 3);
+    for (let i = 0; i < points.length; i += 1) {
+      arr[i * 3] = points[i]!.x;
+      arr[i * 3 + 1] = points[i]!.y;
+      arr[i * 3 + 2] = points[i]!.z;
+    }
+    previewGeom.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    previewGeom.computeBoundingSphere();
+    previewLine.visible = true;
+  };
+
   const refreshStatus = (): void => {
     legend.update({
       appMode: selection.appMode,
       domain: selection.domain,
       transforming: transform !== null,
+      loopCutting: loopCutSession !== null,
     });
     if (transform) {
       status.update(formatTransformStatus(transform));
+      return;
+    }
+    if (loopCutSession) {
+      const pct = Math.round(loopCutSession.factor * 100);
+      status.update(
+        loopCutSession.edgeId === null
+          ? 'Loop Cut · passe o mouse sobre uma aresta'
+          : `Loop Cut · fator ${pct}% · LMB confirma · Esc cancela`,
+      );
       return;
     }
     status.update(
@@ -229,16 +292,30 @@ export function createViewport(container: HTMLElement): Viewport {
     startTransform('grab');
   };
 
-  const runLoopCut = (): void => {
-    if (selection.appMode !== 'edit') return;
-    if (selection.domain !== 'edge' || selection.edges.size === 0) return;
+  const cancelLoopCut = (): void => {
+    if (!loopCutSession) return;
+    loopCutSession = null;
+    clearLoopCutPreview();
+    refreshStatus();
+  };
 
-    const edgeId = selection.edges.values().next().value!;
-    const result = loopCut(mesh, edgeId, 0.5);
-    if (!result || result.newVertexIds.length === 0) return;
+  const confirmLoopCut = (): void => {
+    if (!loopCutSession || loopCutSession.edgeId === null) return;
+    const result = loopCut(
+      mesh,
+      loopCutSession.edgeId,
+      loopCutSession.factor,
+    );
+    loopCutSession = null;
+    clearLoopCutPreview();
+    if (!result || result.newVertexIds.length === 0) {
+      refreshStatus();
+      return;
+    }
 
-    pendingRestore = cloneMesh(mesh);
     mesh = result.mesh;
+    commitHistory(history, mesh);
+    mesh = cloneMesh(history.present);
     meshView.updateMesh(mesh);
     selection = {
       appMode: 'edit',
@@ -249,6 +326,63 @@ export function createViewport(container: HTMLElement): Viewport {
     };
     applySelection();
     startTransform('grab');
+  };
+
+  const updateLoopCutFromPointer = (clientX: number, clientY: number): void => {
+    if (!loopCutSession) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const pointerPx = new THREE.Vector2(
+      clientX - rect.left,
+      clientY - rect.top,
+    );
+    const size = { width: rect.width, height: rect.height };
+    const edgeId = pickNearestEdge(mesh, camera, pointerPx, size);
+    if (edgeId === null) {
+      // Mantém último anel válido; só atualiza fator se ainda houver edge
+      if (loopCutSession.edgeId !== null) {
+        loopCutSession.factor = edgeFactorAtPointer(
+          mesh,
+          loopCutSession.edgeId,
+          camera,
+          pointerPx,
+          size,
+        );
+        drawLoopCutPreview();
+        refreshStatus();
+      }
+      return;
+    }
+    loopCutSession.edgeId = edgeId;
+    loopCutSession.factor = edgeFactorAtPointer(
+      mesh,
+      edgeId,
+      camera,
+      pointerPx,
+      size,
+    );
+    drawLoopCutPreview();
+    refreshStatus();
+  };
+
+  const startLoopCut = (): void => {
+    if (selection.appMode !== 'edit') return;
+    if (transform) cancelTransform();
+
+    const initialEdge =
+      selection.domain === 'edge' && selection.edges.size > 0
+        ? selection.edges.values().next().value!
+        : null;
+
+    loopCutSession = {
+      edgeId: initialEdge,
+      factor: 0.5,
+    };
+    if (initialEdge !== null) {
+      drawLoopCutPreview();
+    } else {
+      clearLoopCutPreview();
+    }
+    refreshStatus();
   };
 
   const runMerge = (): void => {
@@ -280,13 +414,26 @@ export function createViewport(container: HTMLElement): Viewport {
       blockBrowserShortcut(event);
     }
 
-    const transforming = transform !== null;
+    if (loopCutSession) {
+      if (event.code === 'Escape' || event.code === 'Tab') {
+        blockBrowserShortcut(event);
+        cancelLoopCut();
+        return;
+      }
+      if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+        blockBrowserShortcut(event);
+        confirmLoopCut();
+        return;
+      }
+    }
 
-    if (transforming) {
+    const modalActive = transform !== null || loopCutSession !== null;
+
+    if (transform !== null) {
       const numeric = matchNumericInput(event);
       if (numeric !== null) {
         blockBrowserShortcut(event);
-        transform = appendNumericChar(transform!, numeric);
+        transform = appendNumericChar(transform, numeric);
         previewTransform();
         return;
       }
@@ -295,7 +442,7 @@ export function createViewport(container: HTMLElement): Viewport {
     const action = matchKeyAction(
       event,
       selection.appMode === 'edit',
-      transforming,
+      modalActive,
     );
     if (!action) return;
     blockBrowserShortcut(event);
@@ -338,7 +485,7 @@ export function createViewport(container: HTMLElement): Viewport {
         runExtrude();
         break;
       case 'loopCut':
-        runLoopCut();
+        startLoopCut();
         break;
       case 'merge':
         runMerge();
@@ -500,6 +647,18 @@ export function createViewport(container: HTMLElement): Viewport {
   };
 
   const onPointerDown = (event: PointerEvent): void => {
+    if (loopCutSession) {
+      if (event.button === 0) {
+        event.preventDefault();
+        updateLoopCutFromPointer(event.clientX, event.clientY);
+        confirmLoopCut();
+      } else if (event.button === 2) {
+        event.preventDefault();
+        cancelLoopCut();
+      }
+      return;
+    }
+
     if (transform) {
       if (event.button === 0) {
         event.preventDefault();
@@ -525,6 +684,11 @@ export function createViewport(container: HTMLElement): Viewport {
   };
 
   const onPointerMoveSelect = (event: PointerEvent): void => {
+    if (loopCutSession) {
+      updateLoopCutFromPointer(event.clientX, event.clientY);
+      return;
+    }
+
     if (boxDrag && event.pointerId === boxDrag.pointerId) {
       const dx = event.clientX - boxDrag.startX;
       const dy = event.clientY - boxDrag.startY;
@@ -574,11 +738,15 @@ export function createViewport(container: HTMLElement): Viewport {
   };
 
   const onContextMenu = (event: Event): void => {
-    if (transform) event.preventDefault();
+    if (transform || loopCutSession) event.preventDefault();
   };
 
   // Captura origem do modal no primeiro movimento após G/R/S
   const onPointerMoveArm = (event: PointerEvent): void => {
+    if (loopCutSession) {
+      onPointerMoveSelect(event);
+      return;
+    }
     if (boxDrag) {
       onPointerMoveSelect(event);
       return;
@@ -644,6 +812,11 @@ export function createViewport(container: HTMLElement): Viewport {
       renderer.domElement.removeEventListener('pointercancel', onPointerUp);
       renderer.domElement.removeEventListener('contextmenu', onContextMenu);
       hideMarquee();
+      loopCutSession = null;
+      clearLoopCutPreview();
+      previewGeom.dispose();
+      previewMat.dispose();
+      previewLine.removeFromParent();
       unsubImmersive();
       unbindImmersive();
       immersiveBtn.dispose();

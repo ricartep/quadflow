@@ -5,6 +5,7 @@ export interface LegendContext {
   appMode: LegendAppMode;
   domain: LegendDomain;
   transforming: boolean;
+  loopCutting?: boolean;
 }
 
 export interface ShortcutLegend {
@@ -31,6 +32,17 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
     };
   }
 
+  if (ctx.loopCutting) {
+    return {
+      title: 'Loop Cut (Ctrl+R)',
+      rows: [
+        { keys: 'Mover', desc: 'Escolhe o anel e a posição do corte' },
+        { keys: 'LMB / Enter', desc: 'Confirma o corte' },
+        { keys: 'Esc / RMB', desc: 'Cancela' },
+      ],
+    };
+  }
+
   if (ctx.appMode === 'object') {
     return {
       title: 'Object Mode',
@@ -52,6 +64,7 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
     { keys: 'A', desc: 'Selecionar tudo' },
     { keys: 'Alt+A', desc: 'Limpar seleção' },
     { keys: 'G R S', desc: 'Mover · Rotacionar · Escalar' },
+    { keys: 'Ctrl+R', desc: 'Loop Cut — preview do anel' },
     { keys: 'Ctrl+Z', desc: 'Desfazer' },
     { keys: 'F11', desc: 'Modo Foco (captura Ctrl+R…)' },
   ];
@@ -76,7 +89,6 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
       rows: [
         ...shared,
         { keys: 'E', desc: 'Extrude — cria uma face (quad)' },
-        { keys: 'Ctrl+R', desc: 'Loop Cut — corta o anel de quads' },
         { keys: 'X', desc: 'Dissolve (fundir faces)' },
         { keys: 'M', desc: 'Merge dos extremos' },
         { keys: 'Clique', desc: 'Selecionar · Shift acumula' },

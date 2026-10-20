@@ -15,6 +15,7 @@ export {
 export {
   findEdgeRing,
   loopCut,
+  loopCutPreviewPositions,
   oppositeEdgeOnQuad,
   type LoopCutResult,
 } from './loopCut';

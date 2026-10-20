@@ -109,9 +109,10 @@ function pickEdge(
   camera: THREE.Camera,
   pointer: THREE.Vector2,
   size: ScreenSize,
+  thresholdPx = EDGE_THRESHOLD_PX,
 ): Id | null {
   let bestId: Id | null = null;
-  let bestDist = EDGE_THRESHOLD_PX;
+  let bestDist = thresholdPx;
 
   for (const edgeId of uniqueEdgeIdsPreferManifold(mesh)) {
     const [aId, bId] = edgeVertices(mesh, edgeId);
@@ -134,6 +135,45 @@ function pickEdge(
     }
   }
   return bestId;
+}
+
+/** Pick de aresta com limiar maior (modal Loop Cut). */
+export function pickNearestEdge(
+  mesh: Mesh,
+  camera: THREE.Camera,
+  pointer: THREE.Vector2,
+  size: ScreenSize,
+  thresholdPx = 28,
+): Id | null {
+  return pickEdge(mesh, camera, pointer, size, thresholdPx);
+}
+
+/** Fator 0..1 ao longo da aresta sob o ponteiro (para deslizar o corte). */
+export function edgeFactorAtPointer(
+  mesh: Mesh,
+  edgeId: Id,
+  camera: THREE.Camera,
+  pointer: THREE.Vector2,
+  size: ScreenSize,
+): number {
+  const [aId, bId] = edgeVertices(mesh, edgeId);
+  const a = mesh.vertices.get(aId)!;
+  const b = mesh.vertices.get(bId)!;
+  const sa = projectToScreen(
+    new THREE.Vector3(a.position.x, a.position.y, a.position.z),
+    camera,
+    size,
+  );
+  const sb = projectToScreen(
+    new THREE.Vector3(b.position.x, b.position.y, b.position.z),
+    camera,
+    size,
+  );
+  const ab = sb.clone().sub(sa);
+  const lenSq = ab.lengthSq();
+  if (lenSq < 1e-10) return 0.5;
+  const t = pointer.clone().sub(sa).dot(ab) / lenSq;
+  return THREE.MathUtils.clamp(t, 0.05, 0.95);
 }
 
 function pickFace(

@@ -154,6 +154,31 @@ function splitQuadLoop(
   return null;
 }
 
+function clampFactor(factor: number): number {
+  return Math.min(0.95, Math.max(0.05, factor));
+}
+
+/**
+ * Pontos do preview do loop (um por aresta do ring), sem alterar a malha.
+ * Retorna null se o ring for inválido.
+ */
+export function loopCutPreviewPositions(
+  mesh: Mesh,
+  edgeId: Id,
+  factor = 0.5,
+): Vec3[] | null {
+  const t = clampFactor(factor);
+  const ring = findEdgeRing(mesh, edgeId);
+  if (ring.length < 2) return null;
+
+  const points: Vec3[] = [];
+  for (const eId of ring) {
+    const [a, b] = edgeEndpoints(mesh, eId);
+    points.push(lerp(mesh.vertices.get(a)!.position, mesh.vertices.get(b)!.position, t));
+  }
+  return points;
+}
+
 /**
  * Insere um edge loop cortando o ring da aresta (`factor` 0..1, padrão 0.5).
  */
@@ -162,7 +187,7 @@ export function loopCut(
   edgeId: Id,
   factor = 0.5,
 ): LoopCutResult | null {
-  const t = Math.min(1, Math.max(0, factor));
+  const t = clampFactor(factor);
   const ring = findEdgeRing(mesh, edgeId);
   if (ring.length < 2) return null;
 

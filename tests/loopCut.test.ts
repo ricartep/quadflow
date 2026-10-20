@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createCubeMesh, validateMesh } from '../src/core';
-import { findEdgeRing, loopCut } from '../src/tools/loopCut';
+import {
+  findEdgeRing,
+  loopCut,
+  loopCutPreviewPositions,
+} from '../src/tools/loopCut';
 
 describe('findEdgeRing', () => {
   it('anel fechado no cubo tem 4 arestas', () => {
@@ -9,6 +13,33 @@ describe('findEdgeRing', () => {
     const ring = findEdgeRing(mesh, edgeId);
     expect(ring.length).toBe(4);
     expect(new Set(ring).size).toBe(4);
+  });
+});
+
+describe('loopCutPreviewPositions', () => {
+  it('devolve um ponto por aresta do ring sem alterar a malha', () => {
+    const mesh = createCubeMesh();
+    const edgeId = mesh.edges.keys().next().value!;
+    const beforeVerts = mesh.vertices.size;
+    const points = loopCutPreviewPositions(mesh, edgeId, 0.5);
+    expect(points).not.toBeNull();
+    expect(points!).toHaveLength(4);
+    expect(mesh.vertices.size).toBe(beforeVerts);
+  });
+
+  it('fator 0.25 desloca o ponto ao longo da aresta', () => {
+    const mesh = createCubeMesh();
+    const edgeId = mesh.edges.keys().next().value!;
+    const edge = mesh.edges.get(edgeId)!;
+    const he = mesh.halfEdges.get(edge.halfEdge)!;
+    const prev = mesh.halfEdges.get(he.prev)!;
+    const a = mesh.vertices.get(prev.vertex)!.position;
+    const b = mesh.vertices.get(he.vertex)!.position;
+    const points = loopCutPreviewPositions(mesh, edgeId, 0.25)!;
+    const p = points[0]!;
+    expect(p.x).toBeCloseTo(a.x + (b.x - a.x) * 0.25);
+    expect(p.y).toBeCloseTo(a.y + (b.y - a.y) * 0.25);
+    expect(p.z).toBeCloseTo(a.z + (b.z - a.z) * 0.25);
   });
 });
 
