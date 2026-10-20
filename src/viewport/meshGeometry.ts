@@ -97,16 +97,16 @@ export function meshToEdgeIndices(
 
   for (const edge of mesh.edges.values()) {
     const he = mesh.halfEdges.get(edge.halfEdge);
-    if (!he || he.twin === null) {
-      throw new Error(`Aresta ${edge.id} sem half-edge/twin`);
+    if (!he) {
+      throw new Error(`Aresta ${edge.id} sem half-edge`);
     }
-    const twin = mesh.halfEdges.get(he.twin);
-    if (!twin) {
-      throw new Error(`Twin da aresta ${edge.id} ausente`);
+    const prev = mesh.halfEdges.get(he.prev);
+    if (!prev) {
+      throw new Error(`Aresta ${edge.id} sem prev`);
     }
 
-    const a = idToIndex.get(he.vertex);
-    const b = idToIndex.get(twin.vertex);
+    const a = idToIndex.get(prev.vertex);
+    const b = idToIndex.get(he.vertex);
     if (a === undefined || b === undefined) {
       throw new Error(`Extremidade de aresta ausente no mapa`);
     }

@@ -49,6 +49,24 @@ describe('deleteFaces', () => {
     const boundary = [...out.halfEdges.values()].filter((he) => he.twin === null);
     expect(boundary.length).toBeGreaterThan(0);
   });
+
+  it('malha aberta ainda gera buffers de render sem erro', async () => {
+    const { meshToRenderData } = await import('../src/viewport/meshGeometry');
+    const { edgeVertices } = await import('../src/viewport/meshTopology');
+    const mesh = createCubeMesh();
+    const faceId = mesh.faces.keys().next().value!;
+    const out = deleteFaces(mesh, [faceId]);
+
+    const data = meshToRenderData(out);
+    expect(data.positions.length).toBe(8 * 3);
+    expect(data.edgeIdBySegment.length).toBe(out.edges.size);
+
+    for (const edge of out.edges.values()) {
+      const [a, b] = edgeVertices(out, edge.id);
+      expect(out.vertices.has(a)).toBe(true);
+      expect(out.vertices.has(b)).toBe(true);
+    }
+  });
 });
 
 describe('deleteVertices', () => {

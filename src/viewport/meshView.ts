@@ -39,14 +39,19 @@ export function createMeshView(mesh: CoreMesh): MeshView {
     vertexColors: true,
   });
   const pointMat = new THREE.PointsMaterial({
-    size: 8,
+    size: 10,
     sizeAttenuation: false,
     vertexColors: true,
+    depthTest: false,
+    depthWrite: false,
   });
 
   const faces = new THREE.Mesh(faceGeom, faceMat);
   const edges = new THREE.LineSegments(edgeGeom, edgeMat);
   const points = new THREE.Points(pointGeom, pointMat);
+  // Vértices por cima das faces para facilitar o clique no modo 1
+  edges.renderOrder = 1;
+  points.renderOrder = 2;
 
   group.add(faces);
   group.add(edges);

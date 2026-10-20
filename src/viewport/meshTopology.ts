@@ -1,20 +1,24 @@
 import { faceVertices, type Id, type Mesh } from '../core';
 
-/** Extremidades da aresta via half-edge / twin (estrutura pública de Mesh). */
+/**
+ * Extremidades da aresta (origem e destino da half-edge).
+ * Funciona com arestas de borda (twin null) e internas.
+ */
 export function edgeVertices(mesh: Mesh, edgeId: Id): [Id, Id] {
   const edge = mesh.edges.get(edgeId);
   if (!edge) {
     throw new Error(`Aresta ${edgeId} não encontrada`);
   }
   const he = mesh.halfEdges.get(edge.halfEdge);
-  if (!he || he.twin === null) {
-    throw new Error(`Aresta ${edgeId} sem half-edge/twin`);
+  if (!he) {
+    throw new Error(`Half-edge da aresta ${edgeId} ausente`);
   }
-  const twin = mesh.halfEdges.get(he.twin);
-  if (!twin) {
-    throw new Error(`Twin da aresta ${edgeId} ausente`);
+  const prev = mesh.halfEdges.get(he.prev);
+  if (!prev) {
+    throw new Error(`Prev da aresta ${edgeId} ausente`);
   }
-  return [he.vertex, twin.vertex];
+  // origem = destino do prev; destino = he.vertex (válido com ou sem twin)
+  return [prev.vertex, he.vertex];
 }
 
 /** Arestas do loop da face. */
@@ -38,15 +42,18 @@ export function faceEdges(mesh: Mesh, faceId: Id): Id[] {
   return result;
 }
 
-/** Faces adjacentes à aresta (até 2). */
+/** Faces adjacentes à aresta (1 se borda, 2 se interna). */
 export function edgeFaces(mesh: Mesh, edgeId: Id): Id[] {
   const edge = mesh.edges.get(edgeId);
   if (!edge) {
     throw new Error(`Aresta ${edgeId} não encontrada`);
   }
   const he = mesh.halfEdges.get(edge.halfEdge);
-  if (!he || he.twin === null) {
-    throw new Error(`Aresta ${edgeId} sem half-edge/twin`);
+  if (!he) {
+    throw new Error(`Half-edge da aresta ${edgeId} ausente`);
+  }
+  if (he.twin === null) {
+    return [he.face];
   }
   const twin = mesh.halfEdges.get(he.twin);
   if (!twin) {
