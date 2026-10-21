@@ -1,4 +1,4 @@
-import type { Lesson } from './types';
+import type { Lesson, LessonTrack } from './types';
 
 /** 6C — lições do curso (dados; textos pedagógicos aqui). */
 export const LESSONS: readonly Lesson[] = [
@@ -6,6 +6,7 @@ export const LESSONS: readonly Lesson[] = [
     id: 'cube-basics',
     title: 'Cubo: modos e seleção',
     summary: 'Entre no Edit Mode e selecione vértices, arestas e faces.',
+    track: 'basic',
     steps: [
       {
         id: 'enter-edit',
@@ -27,6 +28,7 @@ export const LESSONS: readonly Lesson[] = [
     id: 'cylinder-hole',
     title: 'Cilindro com furo',
     summary: 'Adicione um cilindro e prepare topologia para um furo com quads.',
+    track: 'basic',
     steps: [
       {
         id: 'add-cyl',
@@ -50,6 +52,7 @@ export const LESSONS: readonly Lesson[] = [
     id: 'quad-sphere',
     title: 'Esfera de quads',
     summary: 'UV Sphere ou cubo subdividido — entenda polos.',
+    track: 'intermediate',
     steps: [
       {
         id: 'add-sphere',
@@ -75,6 +78,7 @@ export const LESSONS: readonly Lesson[] = [
     id: 'simple-face',
     title: 'Rosto simples',
     summary: 'Bloqueie um rosto com loops de quads (densidade controlada).',
+    track: 'intermediate',
     steps: [
       {
         id: 'blockout',
@@ -92,6 +96,7 @@ export const LESSONS: readonly Lesson[] = [
     id: 'wheel',
     title: 'Roda',
     summary: 'Cilindro + inset + extrude para o pneu e a roda.',
+    track: 'advanced',
     steps: [
       {
         id: 'wheel-cyl',
@@ -114,4 +119,8 @@ export const LESSONS: readonly Lesson[] = [
 
 export function getLesson(id: string): Lesson | undefined {
   return LESSONS.find((l) => l.id === id);
+}
+
+export function lessonsForTrack(track: LessonTrack): readonly Lesson[] {
+  return LESSONS.filter((l) => l.track === track);
 }

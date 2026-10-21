@@ -5,8 +5,9 @@ export type {
   LessonProgress,
   LessonScore,
   LessonStep,
+  LessonTrack,
 } from './types';
-export { LESSONS, getLesson } from './catalog';
+export { LESSONS, getLesson, lessonsForTrack } from './catalog';
 export { evaluateCheck, evaluateChecks } from './checks';
 export {
   currentStep,
@@ -20,5 +21,9 @@ export {
   upsertLessonProgress,
   type ProgressStore,
 } from './progress';
-export { createTutorialPanel, type TutorialPanel } from './tutorialPanel';
+export {
+  createTutorialPanel,
+  type TutorialPanel,
+  type TutorialPanelOptions,
+} from './tutorialPanel';
 export { meshToObj, objToMesh } from './obj';

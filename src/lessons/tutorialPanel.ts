@@ -1,5 +1,5 @@
 import type { Mesh } from '../core';
-import { LESSONS, getLesson } from './catalog';
+import { getLesson, lessonsForTrack } from './catalog';
 import { evaluateCheck } from './checks';
 import {
   currentStep,
@@ -13,8 +13,13 @@ import {
   upsertLessonProgress,
   type ProgressStore,
 } from './progress';
-import type { Lesson, LessonProgress } from './types';
+import type { Lesson, LessonProgress, LessonTrack } from './types';
 import './tutorial.css';
+
+export interface TutorialPanelOptions {
+  /** Filtra o seletor pela trilha do menu inicial. */
+  track: LessonTrack;
+}
 
 export interface TutorialPanel {
   /** Reavalia o passo atual com a malha ativa. */
@@ -22,9 +27,17 @@ export interface TutorialPanel {
   dispose(): void;
 }
 
-export function createTutorialPanel(parent: HTMLElement): TutorialPanel {
+export function createTutorialPanel(
+  parent: HTMLElement,
+  options: TutorialPanelOptions,
+): TutorialPanel {
+  const catalog = lessonsForTrack(options.track);
+  if (catalog.length === 0) {
+    throw new Error(`Nenhuma lição na trilha "${options.track}"`);
+  }
+
   let store: ProgressStore = loadProgress();
-  let lesson: Lesson = LESSONS[0]!;
+  let lesson: Lesson = catalog[0]!;
   let progress: LessonProgress =
     store.byLesson[lesson.id] ?? freshProgress(lesson.id);
 
@@ -55,7 +68,7 @@ export function createTutorialPanel(parent: HTMLElement): TutorialPanel {
 
   const select = document.createElement('select');
   select.className = 'qf-lesson__btn';
-  for (const l of LESSONS) {
+  for (const l of catalog) {
     const opt = document.createElement('option');
     opt.value = l.id;
     opt.textContent = l.title;
@@ -64,7 +77,7 @@ export function createTutorialPanel(parent: HTMLElement): TutorialPanel {
   select.value = lesson.id;
   select.addEventListener('change', () => {
     const next = getLesson(select.value);
-    if (!next) return;
+    if (!next || next.track !== options.track) return;
     lesson = next;
     progress = store.byLesson[lesson.id] ?? freshProgress(lesson.id);
     render(null);

@@ -22,10 +22,14 @@ export interface LessonStep {
   checks: LessonCheck[];
 }
 
+/** Trilha do menu inicial (tutoriais). */
+export type LessonTrack = 'basic' | 'intermediate' | 'advanced';
+
 export interface Lesson {
   id: string;
   title: string;
   summary: string;
+  track: LessonTrack;
   steps: LessonStep[];
 }
 

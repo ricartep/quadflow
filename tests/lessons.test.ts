@@ -4,6 +4,7 @@ import {
   LESSONS,
   evaluateCheck,
   freshProgress,
+  lessonsForTrack,
   meshToObj,
   objToMesh,
   scoreLesson,
@@ -20,6 +21,18 @@ describe('lesson catalog (6C)', () => {
       'simple-face',
       'wheel',
     ]);
+  });
+
+  it('filtra por trilha do menu inicial', () => {
+    expect(lessonsForTrack('basic').map((l) => l.id)).toEqual([
+      'cube-basics',
+      'cylinder-hole',
+    ]);
+    expect(lessonsForTrack('intermediate').map((l) => l.id)).toEqual([
+      'quad-sphere',
+      'simple-face',
+    ]);
+    expect(lessonsForTrack('advanced').map((l) => l.id)).toEqual(['wheel']);
   });
 });
 

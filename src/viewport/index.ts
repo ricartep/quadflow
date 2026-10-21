@@ -60,6 +60,7 @@ import {
   createStatusBar,
   formatSelectionStatus,
   type AddMenu,
+  type AppStartMode,
   type AuditPanel,
   type ImmersiveToggle,
   type Outliner,
@@ -132,8 +133,17 @@ const GRAB_SENS = 0.01;
 const ROTATE_SENS = 0.01;
 const SCALE_SENS = 0.01;
 
+export interface ViewportOptions {
+  /** Modo do menu inicial; padrão = livre. */
+  mode?: AppStartMode;
+}
+
 /** Monta viewport com câmera orbital, grid, malha, seleção e G/R/S. */
-export function createViewport(container: HTMLElement): Viewport {
+export function createViewport(
+  container: HTMLElement,
+  options: ViewportOptions = {},
+): Viewport {
+  const startMode: AppStartMode = options.mode ?? 'free';
   const scene = createScene();
   const renderer = createRenderer(container);
   const camera = createCamera(
@@ -144,8 +154,10 @@ export function createViewport(container: HTMLElement): Viewport {
   let sceneState: SceneState = createInitialScene();
   const sceneHistory = createSceneHistory(sceneState);
   sceneState = sceneHistory.present;
-  // Cópia de trabalho do objeto ativo
-  let mesh: Mesh = cloneMesh(getActiveObject(sceneState).mesh);
+  // Cópia de trabalho do objeto ativo (cena começa vazia)
+  let mesh: Mesh = hasActiveObject(sceneState)
+    ? cloneMesh(getActiveObject(sceneState).mesh)
+    : createEmptyMesh();
   const views = new Map<number, MeshView>();
   let selection: SelectionState = createSelectionState();
   let transform: TransformSession | null = null;
@@ -318,7 +330,10 @@ export function createViewport(container: HTMLElement): Viewport {
     },
   );
 
-  const tutorialPanel: TutorialPanel = createTutorialPanel(docks.left);
+  const tutorialPanel: TutorialPanel | null =
+    startMode === 'free'
+      ? null
+      : createTutorialPanel(docks.left, { track: startMode });
 
   // Fase 7 — import/export OBJ (no dock esquerdo, abaixo da lição)
   const ioBar = document.createElement('div');
@@ -603,7 +618,7 @@ export function createViewport(container: HTMLElement): Viewport {
     refreshOutliner();
     refreshStatus();
     refreshAudit();
-    if (hasActiveObject(sceneState)) {
+    if (tutorialPanel && hasActiveObject(sceneState)) {
       tutorialPanel.tick(mesh);
     }
   };
@@ -1732,7 +1747,7 @@ export function createViewport(container: HTMLElement): Viewport {
       bevelPanel.dispose();
       auditPanel.dispose();
       whyPanel.dispose();
-      tutorialPanel.dispose();
+      tutorialPanel?.dispose();
       ioBar.remove();
       stopExplainPreview();
       outliner.dispose();

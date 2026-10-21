@@ -1,0 +1,81 @@
+.qf-start {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, #2a3038 0%, transparent 55%),
+    #1a1a1a;
+  color: #c8c8c8;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.qf-start__panel {
+  width: min(26rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.qf-start__brand {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #e8e8e8;
+  text-align: center;
+}
+
+.qf-start__lead {
+  margin: 0;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #9a9a9a;
+}
+
+.qf-start__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qf-start__choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid #444;
+  border-radius: 2px;
+  background: #242424;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.qf-start__choice:hover,
+.qf-start__choice:focus-visible {
+  border-color: #ff7a00;
+  background: #2a2a2a;
+  outline: none;
+}
+
+.qf-start__choice-title {
+  font-size: 1rem;
+  color: #e8e8e8;
+}
+
+.qf-start__choice-desc {
+  font-size: 0.78rem;
+  color: #888;
+  line-height: 1.35;
+}

@@ -1,4 +1,4 @@
-import { cloneMesh, createCubeMesh, type Mesh } from '../core';
+import { cloneMesh, type Mesh } from '../core';
 import type { PrimitiveKind } from '../tools/primitives';
 
 export type ObjectKind = PrimitiveKind | 'mesh';
@@ -33,14 +33,14 @@ const KIND_LABEL: Record<ObjectKind, string> = {
   mesh: 'Mesh',
 };
 
+/** Cena sem objetos — estado inicial do app. */
 export function createInitialScene(): SceneState {
-  const mesh = createCubeMesh();
   return {
-    objects: [{ id: 0, name: 'Cube', kind: 'cube', mesh, subdLevels: 0 }],
-    activeId: 0,
-    selectedIds: new Set([0]),
-    nextId: 1,
-    counters: { cube: 1 },
+    objects: [],
+    activeId: -1,
+    selectedIds: new Set(),
+    nextId: 0,
+    counters: {},
   };
 }
 

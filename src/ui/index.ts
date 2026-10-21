@@ -1,5 +1,9 @@
 export { initGate } from './gate';
 export {
+  showStartMenu,
+  type AppStartMode,
+} from './startMenu';
+export {
   createAddMenu,
   type AddMenu,
 } from './addMenu';

@@ -1,5 +1,5 @@
 import './style.css';
-import { initGate } from './ui';
+import { initGate, showStartMenu } from './ui';
 import { createViewport } from './viewport';
 
 async function main(): Promise<void> {
@@ -9,7 +9,8 @@ async function main(): Promise<void> {
   }
 
   await initGate();
-  createViewport(app);
+  const mode = await showStartMenu();
+  createViewport(app, { mode });
 }
 
 void main();
