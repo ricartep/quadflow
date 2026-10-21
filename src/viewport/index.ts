@@ -1,5 +1,12 @@
 import { AUDIT_RULES, runAudit, type Issue } from '../audit';
-import { cloneMesh, createEmptyMesh, type Mesh } from '../core';
+import { cloneMesh, createCubeMesh, createEmptyMesh, type Mesh } from '../core';
+import {
+  buildCompare,
+  buildSubdivDemo,
+  captionAt,
+  createWhyPanel,
+  type WhyPanel,
+} from '../explain';
 import {
   bindImmersiveLifecycle,
   blockBrowserShortcut,
@@ -183,12 +190,102 @@ export function createViewport(container: HTMLElement): Viewport {
   const legend: ShortcutLegend = createShortcutLegend(container);
   let auditIssues: Issue[] = [];
   let selectedIssueId: string | null = null;
+  let explainRestore: Mesh | null = null;
+  let poleAnimId = 0;
 
-  const auditPanel: AuditPanel = createAuditPanel(container, (issue) => {
+  const stopExplainPreview = (): void => {
+    if (poleAnimId) {
+      cancelAnimationFrame(poleAnimId);
+      poleAnimId = 0;
+    }
+    if (explainRestore) {
+      const view = activeView();
+      if (view) view.updateMesh(explainRestore);
+      explainRestore = null;
+    }
+  };
+
+  const whyPanel: WhyPanel = createWhyPanel(container, {
+    onDemoSubdiv: () => {
+      if (!hasActiveObject(sceneState)) return;
+      stopExplainPreview();
+      const demo = buildSubdivDemo(mesh, 1);
+      explainRestore = displayMeshFor(getActiveObject(sceneState), mesh);
+      activeView()?.updateMesh(demo.after);
+      status.update(
+        `Demo 5B · Catmull-Clark ×${demo.levels} — artefato revelado · clique outro issue ou Esc`,
+      );
+    },
+    onCompare: () => {
+      if (!hasActiveObject(sceneState)) return;
+      stopExplainPreview();
+      const cmp = buildCompare(mesh, createCubeMesh(), 'Aluno × Cubo ref.');
+      explainRestore = displayMeshFor(getActiveObject(sceneState), mesh);
+      let flip = false;
+      const view = activeView();
+      const tick = (): void => {
+        flip = !flip;
+        view?.updateMesh(flip ? cmp.reference : cmp.student);
+        status.update(
+          `Comparar 5C · ${cmp.label} · mostrando ${flip ? 'referência' : 'aluno'}`,
+        );
+      };
+      tick();
+      const iv = window.setInterval(tick, 900);
+      window.setTimeout(() => {
+        clearInterval(iv);
+        stopExplainPreview();
+        rebuildViews();
+        applySelection();
+      }, 3600);
+    },
+    onPoleAnim: () => {
+      stopExplainPreview();
+      const start = performance.now();
+      const duration = 2800;
+      const step = (now: number): void => {
+        const p = Math.min(1, (now - start) / duration);
+        status.update(`Redirecionar polo 5D · ${captionAt(p)}`);
+        if (p < 1) {
+          poleAnimId = requestAnimationFrame(step);
+        } else {
+          poleAnimId = 0;
+        }
+      };
+      poleAnimId = requestAnimationFrame(step);
+    },
+  });
+
+  const focusIssue = (issue: Issue): void => {
     selectedIssueId = issue.id;
     auditPanel.update(auditIssues, selectedIssueId);
-    // 5A: destaque dos elementos — por ora só marca na lista
-  });
+    stopExplainPreview();
+
+    const vertices = new Set<number>();
+    const edges = new Set<number>();
+    const faces = new Set<number>();
+    for (const el of issue.elements) {
+      if (el.kind === 'vertex') vertices.add(el.id);
+      else if (el.kind === 'edge') edges.add(el.id);
+      else faces.add(el.id);
+    }
+    const domain =
+      faces.size > 0 ? 'face' : edges.size > 0 ? 'edge' : 'vertex';
+    // Destaque na malha-base (IDs da auditoria)
+    showSubdResult = false;
+    selection = {
+      appMode: 'edit',
+      domain,
+      vertices,
+      edges,
+      faces,
+    };
+    rebuildViews();
+    applySelection();
+    whyPanel.open(issue);
+  };
+
+  const auditPanel: AuditPanel = createAuditPanel(container, focusIssue);
 
   const refreshAudit = (): void => {
     auditIssues = hasActiveObject(sceneState)
@@ -199,6 +296,7 @@ export function createViewport(container: HTMLElement): Viewport {
       !auditIssues.some((i) => i.id === selectedIssueId)
     ) {
       selectedIssueId = null;
+      whyPanel.close();
     }
     auditPanel.update(auditIssues, selectedIssueId);
   };
@@ -937,6 +1035,17 @@ export function createViewport(container: HTMLElement): Viewport {
       }
     }
 
+    if (whyPanel.isOpen() && event.code === 'Escape' && !bevelSession && !loopCutSession && !transform) {
+      blockBrowserShortcut(event);
+      stopExplainPreview();
+      whyPanel.close();
+      selectedIssueId = null;
+      auditPanel.update(auditIssues, null);
+      rebuildViews();
+      applySelection();
+      return;
+    }
+
     if (bevelSession) {
       if (event.code === 'Escape' || event.code === 'Tab') {
         blockBrowserShortcut(event);
@@ -1543,6 +1652,8 @@ export function createViewport(container: HTMLElement): Viewport {
       addMenu.dispose();
       bevelPanel.dispose();
       auditPanel.dispose();
+      whyPanel.dispose();
+      stopExplainPreview();
       outliner.dispose();
       status.dispose();
       legend.dispose();
