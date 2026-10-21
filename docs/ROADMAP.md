@@ -2,7 +2,7 @@ Estado atual
 
 
 
-Concluídas: 0, 1A (half-edge) e 1B (malha e vértices na tela). Em andamento: 1C.
+Concluídas: fases 1–3, auditoria 4A–4G, explain 5A–5D, lições 6A–6C e polimento 7 (OBJ + progresso).
 
 
 

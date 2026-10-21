@@ -8,6 +8,12 @@ import {
   type WhyPanel,
 } from '../explain';
 import {
+  createTutorialPanel,
+  meshToObj,
+  objToMesh,
+  type TutorialPanel,
+} from '../lessons';
+import {
   bindImmersiveLifecycle,
   blockBrowserShortcut,
   matchKeyAction,
@@ -304,6 +310,55 @@ export function createViewport(container: HTMLElement): Viewport {
   const immersiveBtn: ImmersiveToggle = createImmersiveToggle(container, () => {
     void toggleImmersive(container);
   });
+
+  const tutorialPanel: TutorialPanel = createTutorialPanel(container);
+
+  // Fase 7 — import/export OBJ
+  const ioBar = document.createElement('div');
+  ioBar.style.cssText =
+    'position:absolute;left:0.75rem;bottom:3.25rem;z-index:44;display:flex;gap:0.3rem;';
+  const exportBtn = document.createElement('button');
+  exportBtn.type = 'button';
+  exportBtn.textContent = 'Export OBJ';
+  exportBtn.className = 'qf-lesson__btn';
+  const importBtn = document.createElement('button');
+  importBtn.type = 'button';
+  importBtn.textContent = 'Import OBJ';
+  importBtn.className = 'qf-lesson__btn';
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.obj,model/obj,text/plain';
+  fileInput.hidden = true;
+  exportBtn.addEventListener('click', () => {
+    if (!hasActiveObject(sceneState)) return;
+    const blob = new Blob([meshToObj(mesh)], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${getActiveObject(sceneState).name}.obj`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  importBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    if (!file || !hasActiveObject(sceneState)) return;
+    const text = await file.text();
+    const imported = objToMesh(text);
+    mesh = imported;
+    writeActiveMesh(sceneState, mesh);
+    commitSceneHistory(sceneHistory, sceneState);
+    sceneState = sceneHistory.present;
+    mesh = cloneMesh(getActiveObject(sceneState).mesh);
+    rebuildViews();
+    selection = clearSelection({ ...selection, appMode: 'edit' });
+    applySelection();
+    fileInput.value = '';
+  });
+  ioBar.appendChild(exportBtn);
+  ioBar.appendChild(importBtn);
+  ioBar.appendChild(fileInput);
+  container.appendChild(ioBar);
   const unbindImmersive = bindImmersiveLifecycle();
   const unsubImmersive = onImmersiveChange((active) => {
     immersiveBtn.setActive(active);
@@ -527,6 +582,9 @@ export function createViewport(container: HTMLElement): Viewport {
     refreshOutliner();
     refreshStatus();
     refreshAudit();
+    if (hasActiveObject(sceneState)) {
+      tutorialPanel.tick(mesh);
+    }
   };
 
   const commitScene = (): void => {
@@ -1653,6 +1711,8 @@ export function createViewport(container: HTMLElement): Viewport {
       bevelPanel.dispose();
       auditPanel.dispose();
       whyPanel.dispose();
+      tutorialPanel.dispose();
+      ioBar.remove();
       stopExplainPreview();
       outliner.dispose();
       status.dispose();

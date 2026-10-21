@@ -79,6 +79,8 @@ function rowsFor(ctx: LegendContext): { title: string; rows: ShortcutRow[] } {
         { keys: 'Z', desc: 'Wireframe' },
         { keys: 'Alt+Z', desc: 'X-Ray' },
         { keys: 'Shift+Z', desc: 'Shading liso / chapado' },
+        { keys: 'Painel Lição', desc: 'Passos e checagens do curso' },
+        { keys: 'Export/Import', desc: 'OBJ (canto inferior esquerdo)' },
         { keys: 'Ctrl+Z', desc: 'Desfazer' },
         { keys: 'Ctrl+Shift+Z', desc: 'Refazer' },
         { keys: 'F11', desc: 'Modo Foco (captura Ctrl+R…)' },

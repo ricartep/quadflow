@@ -1,0 +1,91 @@
+.qf-lesson {
+  position: absolute;
+  left: 50%;
+  bottom: 3.25rem;
+  transform: translateX(-50%);
+  z-index: 45;
+  width: min(28rem, calc(100% - 2rem));
+  padding: 0.65rem 0.85rem 0.75rem;
+  border: 1px solid #555;
+  border-radius: 2px;
+  background: rgba(22, 22, 22, 0.96);
+  color: #ddd;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.78rem;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.qf-lesson[hidden] {
+  display: none;
+}
+
+.qf-lesson__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  color: #888;
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.qf-lesson__title {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+  color: #fff;
+}
+
+.qf-lesson__hint {
+  margin: 0 0 0.45rem;
+  line-height: 1.4;
+  color: #c8c8c8;
+}
+
+.qf-lesson__key {
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #666;
+  border-radius: 2px;
+  background: #2a2a2a;
+  color: #ffb070;
+  font-size: 0.7rem;
+}
+
+.qf-lesson__checks {
+  margin: 0 0 0.5rem;
+  padding-left: 1.1rem;
+  color: #9a9a9a;
+  font-size: 0.7rem;
+}
+
+.qf-lesson__checks li.ok {
+  color: #6dcc7a;
+}
+
+.qf-lesson__row {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.qf-lesson__btn {
+  padding: 0.28rem 0.55rem;
+  border: 1px solid #555;
+  border-radius: 2px;
+  background: #2a2a2a;
+  color: #ddd;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.qf-lesson__btn--primary {
+  border-color: #ff7a00;
+  color: #ffb070;
+}
+
+.qf-lesson__btn:hover {
+  border-color: #888;
+}
