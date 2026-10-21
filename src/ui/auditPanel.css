@@ -1,10 +1,4 @@
 .qf-audit {
-  position: absolute;
-  right: 0.75rem;
-  top: 3.25rem;
-  z-index: 40;
-  width: 16.5rem;
-  max-height: min(50vh, 22rem);
   display: flex;
   flex-direction: column;
   border: 1px solid #555;

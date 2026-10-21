@@ -1,10 +1,4 @@
 .qf-outliner {
-  position: fixed;
-  top: 3.25rem;
-  right: 0.75rem;
-  z-index: 42;
-  width: 11.5rem;
-  max-height: min(50vh, 22rem);
   overflow: auto;
   padding: 0.4rem 0.35rem 0.5rem;
   border: 1px solid #444;

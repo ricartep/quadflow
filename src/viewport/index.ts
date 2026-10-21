@@ -56,6 +56,7 @@ import {
   createImmersiveToggle,
   createOutliner,
   createShortcutLegend,
+  createSideDocks,
   createStatusBar,
   formatSelectionStatus,
   type AddMenu,
@@ -63,6 +64,7 @@ import {
   type ImmersiveToggle,
   type Outliner,
   type ShortcutLegend,
+  type SideDocks,
   type StatusBar,
 } from '../ui';
 import { createBevelPanel, type BevelPanel } from '../ui/bevelPanel';
@@ -192,8 +194,10 @@ export function createViewport(container: HTMLElement): Viewport {
     }
     return subdivideCatmullClark(base, levels);
   };
+  const docks: SideDocks = createSideDocks(container);
   const status: StatusBar = createStatusBar(container);
-  const legend: ShortcutLegend = createShortcutLegend(container);
+  // Esquerda: atalhos → lição → OBJ · Direita: foco → outliner → auditoria → por quê?
+  const legend: ShortcutLegend = createShortcutLegend(docks.left);
   let auditIssues: Issue[] = [];
   let selectedIssueId: string | null = null;
   let explainRestore: Mesh | null = null;
@@ -211,7 +215,7 @@ export function createViewport(container: HTMLElement): Viewport {
     }
   };
 
-  const whyPanel: WhyPanel = createWhyPanel(container, {
+  const whyPanel: WhyPanel = createWhyPanel(docks.right, {
     onDemoSubdiv: () => {
       if (!hasActiveObject(sceneState)) return;
       stopExplainPreview();
@@ -291,7 +295,7 @@ export function createViewport(container: HTMLElement): Viewport {
     whyPanel.open(issue);
   };
 
-  const auditPanel: AuditPanel = createAuditPanel(container, focusIssue);
+  const auditPanel: AuditPanel = createAuditPanel(docks.right, focusIssue);
 
   const refreshAudit = (): void => {
     auditIssues = hasActiveObject(sceneState)
@@ -307,16 +311,18 @@ export function createViewport(container: HTMLElement): Viewport {
     auditPanel.update(auditIssues, selectedIssueId);
   };
 
-  const immersiveBtn: ImmersiveToggle = createImmersiveToggle(container, () => {
-    void toggleImmersive(container);
-  });
+  const immersiveBtn: ImmersiveToggle = createImmersiveToggle(
+    docks.right,
+    () => {
+      void toggleImmersive(container);
+    },
+  );
 
-  const tutorialPanel: TutorialPanel = createTutorialPanel(container);
+  const tutorialPanel: TutorialPanel = createTutorialPanel(docks.left);
 
-  // Fase 7 — import/export OBJ
+  // Fase 7 — import/export OBJ (no dock esquerdo, abaixo da lição)
   const ioBar = document.createElement('div');
-  ioBar.style.cssText =
-    'position:absolute;left:0.75rem;bottom:3.25rem;z-index:44;display:flex;gap:0.3rem;';
+  ioBar.className = 'qf-io';
   const exportBtn = document.createElement('button');
   exportBtn.type = 'button';
   exportBtn.textContent = 'Export OBJ';
@@ -358,7 +364,7 @@ export function createViewport(container: HTMLElement): Viewport {
   ioBar.appendChild(exportBtn);
   ioBar.appendChild(importBtn);
   ioBar.appendChild(fileInput);
-  container.appendChild(ioBar);
+  docks.left.appendChild(ioBar);
   const unbindImmersive = bindImmersiveLifecycle();
   const unsubImmersive = onImmersiveChange((active) => {
     immersiveBtn.setActive(active);
@@ -407,7 +413,7 @@ export function createViewport(container: HTMLElement): Viewport {
     );
   };
 
-  const outliner: Outliner = createOutliner(container, (id, additive) => {
+  const outliner: Outliner = createOutliner(docks.right, (id, additive) => {
     if (selection.appMode === 'edit') {
       selection = toggleObjectEdit(selection);
     }
@@ -416,6 +422,21 @@ export function createViewport(container: HTMLElement): Viewport {
     selection = clearSelection(selection);
     applySelection();
   });
+
+  // Empilha na ordem desejada (appendChild move o nó)
+  const stackDock = (dock: HTMLElement, selectors: string[]): void => {
+    for (const sel of selectors) {
+      const el = dock.querySelector(sel);
+      if (el) dock.appendChild(el);
+    }
+  };
+  stackDock(docks.left, ['.qf-legend', '.qf-lesson', '.qf-io']);
+  stackDock(docks.right, [
+    '.qf-immersive',
+    '.qf-outliner',
+    '.qf-audit',
+    '.qf-why',
+  ]);
 
   const syncBevelPanel = (): void => {
     if (!bevelSession) {
@@ -1717,6 +1738,7 @@ export function createViewport(container: HTMLElement): Viewport {
       outliner.dispose();
       status.dispose();
       legend.dispose();
+      docks.dispose();
       for (const view of views.values()) view.dispose();
       views.clear();
       controls.dispose();

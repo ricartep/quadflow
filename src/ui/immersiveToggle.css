@@ -1,8 +1,4 @@
 .qf-immersive {
-  position: fixed;
-  top: 0.75rem;
-  right: 0.75rem;
-  z-index: 45;
   padding: 0.4rem 0.75rem;
   border: 1px solid #555;
   border-radius: 2px;

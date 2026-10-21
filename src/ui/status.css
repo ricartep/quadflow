@@ -1,15 +1,18 @@
 .qf-status {
   position: fixed;
-  left: 0.75rem;
-  bottom: 0.75rem;
+  left: 50%;
+  bottom: 0.6rem;
+  transform: translateX(-50%);
   z-index: 40;
-  padding: 0.35rem 0.6rem;
+  max-width: min(36rem, calc(100vw - 2rem));
+  padding: 0.35rem 0.75rem;
   border: 1px solid #444;
   border-radius: 2px;
   background: rgba(26, 26, 26, 0.9);
   color: #c8c8c8;
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.75rem;
+  text-align: center;
   pointer-events: none;
   user-select: none;
 }

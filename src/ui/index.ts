@@ -26,3 +26,7 @@ export {
   createAuditPanel,
   type AuditPanel,
 } from './auditPanel';
+export {
+  createSideDocks,
+  type SideDocks,
+} from './docks';
