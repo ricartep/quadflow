@@ -1,3 +1,4 @@
+import { AUDIT_RULES, runAudit, type Issue } from '../audit';
 import { cloneMesh, createEmptyMesh, type Mesh } from '../core';
 import {
   bindImmersiveLifecycle,
@@ -38,12 +39,14 @@ import {
 } from '../tools';
 import {
   createAddMenu,
+  createAuditPanel,
   createImmersiveToggle,
   createOutliner,
   createShortcutLegend,
   createStatusBar,
   formatSelectionStatus,
   type AddMenu,
+  type AuditPanel,
   type ImmersiveToggle,
   type Outliner,
   type ShortcutLegend,
@@ -178,6 +181,28 @@ export function createViewport(container: HTMLElement): Viewport {
   };
   const status: StatusBar = createStatusBar(container);
   const legend: ShortcutLegend = createShortcutLegend(container);
+  let auditIssues: Issue[] = [];
+  let selectedIssueId: string | null = null;
+
+  const auditPanel: AuditPanel = createAuditPanel(container, (issue) => {
+    selectedIssueId = issue.id;
+    auditPanel.update(auditIssues, selectedIssueId);
+    // 5A: destaque dos elementos — por ora só marca na lista
+  });
+
+  const refreshAudit = (): void => {
+    auditIssues = hasActiveObject(sceneState)
+      ? runAudit(mesh, AUDIT_RULES)
+      : [];
+    if (
+      selectedIssueId !== null &&
+      !auditIssues.some((i) => i.id === selectedIssueId)
+    ) {
+      selectedIssueId = null;
+    }
+    auditPanel.update(auditIssues, selectedIssueId);
+  };
+
   const immersiveBtn: ImmersiveToggle = createImmersiveToggle(container, () => {
     void toggleImmersive(container);
   });
@@ -403,6 +428,7 @@ export function createViewport(container: HTMLElement): Viewport {
     applyObjectHighlights();
     refreshOutliner();
     refreshStatus();
+    refreshAudit();
   };
 
   const commitScene = (): void => {
@@ -1516,6 +1542,7 @@ export function createViewport(container: HTMLElement): Viewport {
       immersiveBtn.dispose();
       addMenu.dispose();
       bevelPanel.dispose();
+      auditPanel.dispose();
       outliner.dispose();
       status.dispose();
       legend.dispose();
