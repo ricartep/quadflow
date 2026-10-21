@@ -108,4 +108,20 @@ describe('matchKeyAction loopCut / immersive', () => {
       shouldPreventBrowserDefault(keyEvent('Digit1', { ctrlKey: true })),
     ).toBe(true);
   });
+
+  it('Z / Alt+Z / Shift+Z → wireframe, x-ray, shading', () => {
+    expect(matchKeyAction(keyEvent('KeyZ'), false, false)).toBe(
+      'toggleWireframe',
+    );
+    expect(
+      matchKeyAction(keyEvent('KeyZ', { altKey: true }), false, false),
+    ).toBe('toggleXRay');
+    expect(
+      matchKeyAction(keyEvent('KeyZ', { shiftKey: true }), true, false),
+    ).toBe('toggleFlatShading');
+  });
+
+  it('Z durante transform continua eixo Z', () => {
+    expect(matchKeyAction(keyEvent('KeyZ'), true, true)).toBe('axisZ');
+  });
 });

@@ -28,7 +28,10 @@ export type KeyAction =
   | 'subdLevel1'
   | 'subdLevel2'
   | 'subdLevel3'
-  | 'toggleSubdView';
+  | 'toggleSubdView'
+  | 'toggleWireframe'
+  | 'toggleXRay'
+  | 'toggleFlatShading';
 
 export interface KeyBinding {
   action: KeyAction;
@@ -189,6 +192,23 @@ export const KEYMAP: readonly KeyBinding[] = [
   {
     action: 'toggleSubdView',
     code: 'Backquote',
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'toggleWireframe',
+    code: 'KeyZ',
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'toggleXRay',
+    code: 'KeyZ',
+    alt: true,
+    blocksDuringTransform: true,
+  },
+  {
+    action: 'toggleFlatShading',
+    code: 'KeyZ',
+    shift: true,
     blocksDuringTransform: true,
   },
 ] as const;

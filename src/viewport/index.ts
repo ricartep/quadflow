@@ -55,7 +55,11 @@ import '../ui/legend.css';
 import '../ui/status.css';
 import { BlenderOrbitControls, createCamera } from './camera';
 import { createGrid } from './grid';
-import { createMeshView, type MeshView } from './meshView';
+import {
+  createMeshView,
+  type MeshDisplayMode,
+  type MeshView,
+} from './meshView';
 import {
   collectInScreenBox,
   edgeFactorAtPointer,
@@ -134,6 +138,11 @@ export function createViewport(container: HTMLElement): Viewport {
   let pendingRestore: Mesh | null = null;
   /** true = mostra resultado Catmull-Clark quando subdLevels > 0. */
   let showSubdResult = true;
+  let displayMode: MeshDisplayMode = {
+    wireframe: false,
+    xray: false,
+    flatShading: true,
+  };
 
   type LoopCutSession = {
     edgeId: number | null;
@@ -184,6 +193,12 @@ export function createViewport(container: HTMLElement): Viewport {
     return views.get(sceneState.activeId) ?? null;
   };
 
+  const applyDisplayModeToViews = (): void => {
+    for (const view of views.values()) {
+      view.setDisplayMode(displayMode);
+    }
+  };
+
   const rebuildViews = (): void => {
     for (const view of views.values()) {
       view.dispose();
@@ -195,6 +210,7 @@ export function createViewport(container: HTMLElement): Viewport {
           ? mesh
           : obj.mesh;
       const view = createMeshView(displayMeshFor(obj, base));
+      view.setDisplayMode(displayMode);
       views.set(obj.id, view);
       scene.add(view.group);
     }
@@ -341,17 +357,22 @@ export function createViewport(container: HTMLElement): Viewport {
       objectCount: sceneState.selectedIds.size,
       activeName,
     });
+    const shadeBits: string[] = [];
+    if (displayMode.wireframe) shadeBits.push('wire');
+    if (displayMode.xray) shadeBits.push('x-ray');
+    shadeBits.push(displayMode.flatShading ? 'chapado' : 'liso');
+    const shade = shadeBits.join(' · ');
     if (hasActiveObject(sceneState)) {
       const levels = getActiveObject(sceneState).subdLevels;
       if (levels > 0) {
         const view = showSubdResult ? 'resultado' : 'base';
         status.update(
-          `${baseStatus} · Subdiv ${levels} (${view}) · \` alterna · Ctrl+0 limpa`,
+          `${baseStatus} · Subdiv ${levels} (${view}) · ${shade}`,
         );
         return;
       }
     }
-    status.update(baseStatus);
+    status.update(`${baseStatus} · ${shade}`);
   };
 
   const applyObjectHighlights = (): void => {
@@ -1071,6 +1092,27 @@ export function createViewport(container: HTMLElement): Viewport {
         break;
       case 'toggleSubdView':
         toggleSubdView();
+        break;
+      case 'toggleWireframe':
+        displayMode = {
+          ...displayMode,
+          wireframe: !displayMode.wireframe,
+        };
+        applyDisplayModeToViews();
+        refreshStatus();
+        break;
+      case 'toggleXRay':
+        displayMode = { ...displayMode, xray: !displayMode.xray };
+        applyDisplayModeToViews();
+        refreshStatus();
+        break;
+      case 'toggleFlatShading':
+        displayMode = {
+          ...displayMode,
+          flatShading: !displayMode.flatShading,
+        };
+        applyDisplayModeToViews();
+        refreshStatus();
         break;
     }
   };
